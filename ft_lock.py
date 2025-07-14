@@ -6,6 +6,7 @@ A secure screen locker for Ubuntu 22.04 with lightdm integration
 
 import tkinter as tk
 from tkinter import ttk, messagebox
+from PIL import Image, ImageTk
 import pam
 import os
 import sys
@@ -142,7 +143,7 @@ class FTLock:
             self.root.quit()
             
     def create_lock_screen(self):
-        """Create the lock screen GUI"""
+        """Create the lock screen GUI with full screen background"""
         self.root = tk.Tk()
         self.root.title("FT Lock")
         self.root.configure(bg='black')
@@ -152,47 +153,98 @@ class FTLock:
         self.root.attributes('-topmost', True)
         self.root.overrideredirect(True)
         
-        # Center container
-        container = tk.Frame(self.root, bg='black')
-        container.place(relx=0.5, rely=0.5, anchor='center')
+        # Get screen dimensions
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
         
-        # Lock icon (using Unicode)
-        lock_label = tk.Label(container, text="🔒", font=("Arial", 72), 
+        # Load and set background image
+        try:
+            bg_path = os.path.join(os.path.dirname(__file__), 'images', 'lock_background.png')
+            if os.path.exists(bg_path):
+                # Load and resize background image to fit screen
+                bg_image = Image.open(bg_path)
+                bg_image = bg_image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
+                self.bg_photo = ImageTk.PhotoImage(bg_image)
+                
+                # Create background label that covers entire screen
+                bg_label = tk.Label(self.root, image=self.bg_photo)
+                bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+            else:
+                # Fallback to gradient background
+                self.root.configure(bg='#1a1a2e')
+        except Exception as e:
+            print(f"Warning: Could not load background image: {e}")
+            self.root.configure(bg='#1a1a2e')
+        
+        # Create top-left container for passcode input
+        input_container = tk.Frame(self.root, bg='rgba(0,0,0,0.7)', relief='flat')
+        input_container.place(x=40, y=40, width=400, height=300)
+        
+        # Configure transparent background for container
+        try:
+            # Create a semi-transparent overlay
+            overlay = tk.Frame(input_container, bg='black')
+            overlay.place(x=0, y=0, relwidth=1, relheight=1)
+            overlay.configure(bg='#000000')
+            # Make it semi-transparent by adjusting the alpha (not directly supported in tkinter)
+            # So we'll use a dark background with some opacity effect
+        except:
+            input_container.configure(bg='#000000')
+        
+        # Lock icon in input container
+        lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
                              bg='black', fg='white')
-        lock_label.pack(pady=20)
+        lock_label.pack(pady=(20, 10))
         
-        # System info
+        # System info in top left
         hostname = os.uname().nodename
-        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        current_time = datetime.now().strftime("%H:%M")
+        date_str = datetime.now().strftime("%A, %B %d")
         
-        info_label = tk.Label(container, 
-                             text=f"{hostname}\n{current_time}\nUser: {self.current_user}",
-                             font=("Arial", 14), bg='black', fg='gray',
-                             justify='center')
-        info_label.pack(pady=10)
+        time_label = tk.Label(input_container, text=current_time, 
+                             font=("Arial", 20, "bold"), bg='black', fg='white')
+        time_label.pack(pady=(0, 2))
+        
+        date_label = tk.Label(input_container, text=date_str,
+                             font=("Arial", 12), bg='black', fg='gray')
+        date_label.pack(pady=(0, 15))
         
         # Password prompt
-        prompt_label = tk.Label(container, text="Enter password to unlock:",
-                               font=("Arial", 16), bg='black', fg='white')
-        prompt_label.pack(pady=10)
+        prompt_label = tk.Label(input_container, text="Enter Password:",
+                               font=("Arial", 14), bg='black', fg='white')
+        prompt_label.pack(pady=(0, 8))
         
-        # Password entry
-        self.password_entry = tk.Entry(container, show='*', font=("Arial", 14),
-                                      width=20, justify='center')
-        self.password_entry.pack(pady=10)
+        # Password entry with modern styling
+        entry_frame = tk.Frame(input_container, bg='black')
+        entry_frame.pack(pady=(0, 15))
+        
+        self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 14),
+                                      width=25, bg='#2a2a3e', fg='white',
+                                      relief='flat', bd=0, insertbackground='white')
+        self.password_entry.pack(ipady=8, ipadx=10)
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
-        # Unlock button
-        unlock_btn = tk.Button(container, text="Unlock", font=("Arial", 12),
+        # Unlock button with modern styling
+        unlock_btn = tk.Button(input_container, text="Unlock", font=("Arial", 12, "bold"),
                               command=self.on_unlock_attempt, 
-                              bg='darkblue', fg='white', padx=20)
-        unlock_btn.pack(pady=10)
+                              bg='#4a69bd', fg='white', relief='flat',
+                              padx=30, pady=8, cursor='hand2')
+        unlock_btn.pack(pady=(0, 10))
         
         # Status label
-        self.status_label = tk.Label(container, text="", font=("Arial", 12),
-                                    bg='black', fg='white')
-        self.status_label.pack(pady=10)
+        self.status_label = tk.Label(input_container, text="", font=("Arial", 10),
+                                    bg='black', fg='orange', wraplength=350)
+        self.status_label.pack(pady=(0, 10))
+        
+        # Center bottom info (user and hostname)
+        bottom_container = tk.Frame(self.root, bg='black')
+        bottom_container.place(relx=0.5, rely=0.95, anchor='center')
+        
+        user_info = tk.Label(bottom_container, 
+                            text=f"Locked for {self.current_user}@{hostname}",
+                            font=("Arial", 12), bg='black', fg='gray')
+        user_info.pack()
         
         # Disable window manager functions
         self.root.protocol("WM_DELETE_WINDOW", lambda: None)
