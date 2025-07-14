@@ -3,6 +3,11 @@
 
 echo "Installing FT Lock dependencies..."
 
+# Fix hostname resolution issues first
+echo "Checking hostname resolution..."
+chmod +x fix_hostname.sh
+./fix_hostname.sh
+
 # Update package list
 sudo apt update
 
@@ -54,3 +59,8 @@ echo ""
 echo "To enable screensaver service:"
 echo "  systemctl --user enable ft-lock-screensaver@$USER.service"
 echo "  systemctl --user start ft-lock-screensaver@$USER.service"
+echo ""
+echo "Note: If you encounter permission issues, you may need to:"
+echo "  1. Add your user to necessary groups: sudo usermod -a -G video,input $USER"
+echo "  2. Configure sudo for VT switching (optional for enhanced security)"
+echo "  3. Restart your session after group changes"

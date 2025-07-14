@@ -44,9 +44,10 @@ class FTLock:
         """Disable virtual terminal switching"""
         try:
             # Disable Ctrl+Alt+F1-F12 switching
-            subprocess.run(['sudo', 'chvt', '7'], check=False)
+            subprocess.run(['sudo', '-n', 'chvt', '7'], 
+                         stderr=subprocess.DEVNULL, check=False)
             for i in range(1, 13):
-                subprocess.run(['sudo', 'deallocvt', str(i)], 
+                subprocess.run(['sudo', '-n', 'deallocvt', str(i)], 
                              stderr=subprocess.DEVNULL, check=False)
         except Exception as e:
             print(f"Warning: Could not disable VT switching: {e}")
@@ -55,7 +56,7 @@ class FTLock:
         """Re-enable virtual terminal switching"""
         try:
             for i in range(1, 13):
-                subprocess.run(['sudo', 'openvt', '-c', str(i)], 
+                subprocess.run(['sudo', '-n', 'openvt', '-c', str(i)], 
                              stderr=subprocess.DEVNULL, check=False)
         except Exception as e:
             print(f"Warning: Could not re-enable VT switching: {e}")
@@ -63,12 +64,30 @@ class FTLock:
     def grab_input(self):
         """Grab keyboard and mouse input"""
         try:
-            self.root.grab_set_global()
-            self.root.focus_force()
+            # Ensure window is visible and updated
+            self.root.update_idletasks()
+            self.root.after(100, self._delayed_grab)
             return True
         except Exception as e:
             print(f"Warning: Could not grab input: {e}")
             return False
+            
+    def _delayed_grab(self):
+        """Delayed input grabbing after window is ready"""
+        try:
+            self.root.grab_set_global()
+            self.root.focus_force()
+            if self.password_entry:
+                self.password_entry.focus_set()
+        except Exception as e:
+            print(f"Warning: Delayed grab failed: {e}")
+            # Try alternative focus method
+            try:
+                self.root.focus_set()
+                if self.password_entry:
+                    self.password_entry.focus_set()
+            except:
+                pass
             
     def authenticate_user(self, username, password):
         """Authenticate user using PAM"""
@@ -178,7 +197,8 @@ class FTLock:
         # Disable window manager functions
         self.root.protocol("WM_DELETE_WINDOW", lambda: None)
         
-        # Grab input focus
+        # Ensure window is shown before grabbing input
+        self.root.update()
         self.grab_input()
         
         return self.root
@@ -235,6 +255,50 @@ class FTLock:
             except Exception as e:
                 print(f"Screensaver error: {e}")
                 time.sleep(5)
+                
+    def test_components(self):
+        """Test FT Lock components for debugging"""
+        print(f"Current user: {self.current_user}")
+        print(f"Session active: {self.is_session_active()}")
+        
+        # Test PAM import
+        try:
+            import pam
+            print("✓ PAM module available")
+        except ImportError as e:
+            print(f"✗ PAM module error: {e}")
+            
+        # Test tkinter
+        try:
+            import tkinter as tk
+            root = tk.Tk()
+            root.withdraw()  # Hide window
+            print("✓ Tkinter available")
+            root.destroy()
+        except Exception as e:
+            print(f"✗ Tkinter error: {e}")
+            
+        # Test hostname resolution
+        try:
+            import socket
+            hostname = socket.gethostname()
+            socket.gethostbyname(hostname)
+            print(f"✓ Hostname resolution: {hostname}")
+        except Exception as e:
+            print(f"✗ Hostname resolution error: {e}")
+            
+        # Test sudo access (non-interactive)
+        try:
+            result = subprocess.run(['sudo', '-n', 'true'], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                print("✓ Sudo access available")
+            else:
+                print("⚠ Sudo requires password (VT switching may not work)")
+        except Exception as e:
+            print(f"✗ Sudo test error: {e}")
+            
+        print("\nComponent test complete.")
 
 
 def check_dependencies():
@@ -262,11 +326,15 @@ def main():
         elif sys.argv[1] == "--screensaver":
             timeout = int(sys.argv[2]) if len(sys.argv) > 2 else 10
             ft_lock.start_screensaver(timeout)
+        elif sys.argv[1] == "--test":
+            print("Testing FT Lock components...")
+            ft_lock.test_components()
         elif sys.argv[1] == "--help":
             print("FT Lock - Linux Screen Saver with Authentication")
             print("Usage:")
             print("  ft_lock.py --lock           Lock screen immediately")
             print("  ft_lock.py --screensaver [timeout]  Start screensaver (default: 10 min)")
+            print("  ft_lock.py --test           Test components")
             print("  ft_lock.py --help           Show this help")
         else:
             print("Invalid option. Use --help for usage information")
