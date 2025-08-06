@@ -33,6 +33,8 @@ class TestFTLock:
         self.max_attempts = 3
         self.current_user = getpass.getuser()
         self.locked = False
+        self.lockout_active = False  # 5분 잠금 상태 추가
+        self.lockout_start_time = None  # 잠금 시작 시간
         
     def authenticate_user(self, username, password):
         """Authenticate user using PAM (if available)"""
@@ -108,8 +110,29 @@ class TestFTLock:
         
     def _authenticate_threaded(self, password):
         """Perform authentication in separate thread"""
+        # Check if still in lockout period
+        if self.lockout_active:
+            if self.lockout_start_time:
+                elapsed = time.time() - self.lockout_start_time
+                remaining = 300 - elapsed  # 300초 = 5분
+                
+                if remaining > 0:
+                    minutes = int(remaining // 60)
+                    seconds = int(remaining % 60)
+                    self.root.after(0, lambda: self.status_label.config(
+                        text=f"System locked. Wait {minutes}m {seconds}s more.", 
+                        foreground="red"))
+                    return
+                else:
+                    # 5분이 지났으므로 잠금 해제
+                    self.lockout_active = False
+                    self.lockout_start_time = None
+                    self.attempts = 0
+        
         # Check for test password first (always works)
         if password == 'test':
+            self.attempts = 0  # 성공 시 시도 횟수 리셋
+            self.lockout_active = False  # 잠금 해제
             self.root.after(0, lambda: self.status_label.config(
                 text="Test password accepted!", foreground="green"))
             self.root.after(500, self.unlock_screen)
@@ -118,6 +141,8 @@ class TestFTLock:
         # Try PAM authentication if available
         if PAM_AVAILABLE:
             if self.authenticate_user(self.current_user, password):
+                self.attempts = 0  # 성공 시 시도 횟수 리셋
+                self.lockout_active = False  # 잠금 해제
                 self.root.after(0, lambda: self.status_label.config(
                     text="PAM authentication successful!", foreground="green"))
                 self.root.after(500, self.unlock_screen)
@@ -128,16 +153,33 @@ class TestFTLock:
         remaining = self.max_attempts - self.attempts
         
         if self.attempts >= self.max_attempts:
+            # 5분 잠금 시작
+            self.lockout_active = True
+            self.lockout_start_time = time.time()
+            
             self.root.after(0, lambda: self.status_label.config(
-                text=f"Max attempts reached. Try again later.", 
+                text=f"Max attempts reached. System locked for 5 minutes.", 
                 foreground="red"))
-            self.root.after(3000, lambda: setattr(self, 'attempts', 0))
+            
+            # 5분 후 자동 해제
+            self.root.after(300000, self._clear_lockout)  # 300000ms = 5분
         else:
             auth_method = "PAM" if PAM_AVAILABLE else "test"
             self.root.after(0, lambda: self.status_label.config(
                 text=f"Invalid password ({auth_method}). {remaining} attempts remaining.", 
                 foreground="red"))
-                    
+    
+    def _clear_lockout(self):
+        """Clear lockout after 5 minutes"""
+        if self.lockout_active:
+            self.lockout_active = False
+            self.lockout_start_time = None
+            self.attempts = 0
+            if self.status_label:
+                self.status_label.config(
+                    text="Lockout expired. You may try again.", 
+                    foreground="orange")
+        
     def unlock_screen(self):
         """Unlock the screen and exit"""
         self.locked = False
