@@ -186,7 +186,7 @@ class TestFTLock:
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         
-        # Load and set background image (원래 방식으로 복원)
+        # Load and set background image
         try:
             bg_path = os.path.join(os.path.dirname(__file__), 'images', 'lock_background.png')
             if os.path.exists(bg_path):
@@ -197,7 +197,7 @@ class TestFTLock:
                 
                 # Create background label that covers entire screen
                 bg_label = tk.Label(self.root, image=self.bg_photo)
-                bg_label.place(x=0, y=0, width=screen_width, height=screen_height)
+                bg_label.place(x=0, y=0, relwidth=1, relheight=1)
             else:
                 # Fallback to gradient background
                 self.root.configure(bg='#1a1a2e')
@@ -207,7 +207,7 @@ class TestFTLock:
         
         # Create top-left container for passcode input
         input_container = tk.Frame(self.root, bg='black', relief='flat')
-        input_container.place(x=40, y=40, width=400, height=350)
+        input_container.place(x=40, y=40, width=400, height=320)
         
         # Lock icon in input container
         lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
