@@ -27,6 +27,8 @@ class TestFTLock:
         self.root = None
         self.password_entry = None
         self.status_label = None
+        self.time_label = None  # 실시간 시간 라벨
+        self.date_label = None  # 실시간 날짜 라벨
         self.attempts = 0
         self.max_attempts = 3
         self.current_user = getpass.getuser()
@@ -188,6 +190,18 @@ class TestFTLock:
             # Schedule next focus check
             self.root.after(100, self._maintain_focus)
             
+    def update_time(self):
+        """Update time and date in real-time"""
+        if self.locked and self.time_label and self.date_label:
+            current_time = datetime.now().strftime("%H:%M:%S")  # 초까지 표시
+            date_str = datetime.now().strftime("%A, %B %d")
+            
+            self.time_label.config(text=current_time)
+            self.date_label.config(text=date_str)
+            
+            # 1초마다 업데이트
+            self.root.after(1000, self.update_time)
+            
     def create_lock_screen(self):
         """Create the lock screen GUI with full screen background"""
         self.root = tk.Tk()
@@ -235,27 +249,25 @@ class TestFTLock:
             print(f"Warning: Could not load background image: {e}")
             self.root.configure(bg='#1a1a2e')
         
-        # Create top-left container for passcode input
+        # Create center container for passcode input (가운데로 이동)
         input_container = tk.Frame(self.root, bg='black', relief='flat')
-        input_container.place(x=40, y=40, width=400, height=350)
+        input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
         
         # Lock icon in input container
         lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
                              bg='black', fg='white')
         lock_label.pack(pady=(20, 10))
         
-        # System info in top left
+        # System info (실시간 업데이트를 위해 라벨을 인스턴스 변수로 저장)
         hostname = os.uname().nodename
-        current_time = datetime.now().strftime("%H:%M")
-        date_str = datetime.now().strftime("%A, %B %d")
         
-        time_label = tk.Label(input_container, text=current_time, 
+        self.time_label = tk.Label(input_container, text="", 
                              font=("Arial", 20, "bold"), bg='black', fg='white')
-        time_label.pack(pady=(0, 2))
+        self.time_label.pack(pady=(0, 2))
         
-        date_label = tk.Label(input_container, text=date_str,
+        self.date_label = tk.Label(input_container, text="",
                              font=("Arial", 12), bg='black', fg='gray')
-        date_label.pack(pady=(0, 15))
+        self.date_label.pack(pady=(0, 15))
         
         # Password prompt
         prompt_label = tk.Label(input_container, text="Enter Password:",
@@ -318,6 +330,9 @@ class TestFTLock:
         # Ensure window is shown before grabbing input
         self.root.update()
         self.grab_input()
+        
+        # 실시간 시간 업데이트 시작
+        self.update_time()
         
         return self.root
         
