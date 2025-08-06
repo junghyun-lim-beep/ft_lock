@@ -2,14 +2,36 @@
 
 A secure screen locker for Ubuntu 22.04 with lightdm integration that uses Linux account information for authentication.
 
+## ✨ Features
+
+### 🔒 **Enhanced Security**
+- **Advanced Key Blocking**: Blocks all system shortcuts (Super+A, Alt+Tab, Ctrl+Alt+F1-F12, etc.)
+- **Special Character Support**: Full password support including `/`, `@`, `#`, `$` and other symbols
+- **Real 5-Minute Lockout**: Actual 5-minute lockout after 3 failed attempts with countdown timer
+- **Enhanced Input Grabbing**: Continuous focus maintenance and input capture
+- **VT Switching Protection**: Prevents virtual terminal switching through keyboard shortcuts
+
+### 🎨 **UI Improvements**
+- **Centered Interface**: Password input dialog positioned at screen center
+- **Real-time Clock**: Live time display with seconds (HH:MM:SS format)
+- **Auto-generated Background**: Beautiful gradient background image creation
+- **Improved Layout**: Better spacing and modern styling
+- **Status Messages**: Clear feedback for authentication attempts
+
+### 🧪 **Testing Features**
+- **Test Mode**: `test_lock_screen.py` with PAM authentication support
+- **'test' Password**: Quick testing with bypass password (test mode only)
+- **Component Testing**: `--test` flag for system verification
+
 ## Features
 
-- **PAM Authentication**: Uses Linux account credentials
-- **Fullscreen Lock**: Prevents desktop access
-- **Virtual Terminal Protection**: Disables Ctrl+Alt+F1-F12 switching
+- **PAM Authentication**: Uses Linux account credentials + enhanced security
+- **Fullscreen Lock**: Prevents desktop access with advanced key blocking
+- **System Shortcut Protection**: Blocks Super, Alt, and Ctrl key combinations
 - **Screensaver Mode**: Automatic locking after inactivity
-- **Failed Attempt Protection**: Temporary lockout after max attempts
-- **System Integration**: Works with lightdm and Ubuntu 22.04
+- **Failed Attempt Protection**: 5-minute lockout with real-time countdown
+- **Real-time Display**: Live clock and date updates
+- **Cross-platform Build**: Docker-based compilation for consistent results
 
 ## Requirements
 
@@ -37,6 +59,19 @@ A secure screen locker for Ubuntu 22.04 with lightdm integration that uses Linux
    
    # Make executable
    chmod +x ft_lock.py
+   ```
+
+3. **Build Executable (Docker)**:
+   ```bash
+   # Prerequisites: Docker installed and running
+   
+   # Build Linux executable using Docker
+   ./make_install.sh
+   
+   # Results:
+   # - dist/ft-lock (Linux executable)
+   # - ft-lock-release/ (distribution package) 
+   # - ft-lock-linux-YYYYMMDD.tar.gz (release archive)
    ```
 
 ## Usage
