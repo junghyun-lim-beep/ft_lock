@@ -157,8 +157,8 @@ class TestFTLock:
                 if self.password_entry:
                     self.password_entry.focus_set()
                     
-            except Exception as e:
-                print(f"Focus maintenance error: {e}")
+            except Exception:
+                pass
             
             # Schedule next focus check
             self.root.after(100, self._maintain_focus)
@@ -186,21 +186,13 @@ class TestFTLock:
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         
-        # Load and set background image
+        # Load and set background image (원래 방식으로 복원)
         try:
             bg_path = os.path.join(os.path.dirname(__file__), 'images', 'lock_background.png')
             if os.path.exists(bg_path):
                 # Load and resize background image to fit screen
                 bg_image = Image.open(bg_path)
-                
-                # Handle different Pillow versions for resampling
-                try:
-                    # New Pillow versions (10.0.0+)
-                    bg_image = bg_image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
-                except AttributeError:
-                    # Older Pillow versions
-                    bg_image = bg_image.resize((screen_width, screen_height), Image.LANCZOS)
-                
+                bg_image = bg_image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
                 self.bg_photo = ImageTk.PhotoImage(bg_image)
                 
                 # Create background label that covers entire screen
