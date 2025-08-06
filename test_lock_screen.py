@@ -46,19 +46,45 @@ class TestFTLock:
         
     def block_all_keys(self, event):
         """Block all key combinations except allowed ones"""
-        # Allow only basic typing keys and specific keys for password entry
+        # Allow basic typing keys and navigation keys
         allowed_keys = {
             'Return', 'BackSpace', 'Delete', 'Left', 'Right', 'Home', 'End',
-            'Tab', 'Escape'  # Escape only for test mode
+            'Tab', 'Escape',  # Escape only for test mode
+            'space', 'Space'  # Space key
         }
         
-        # Allow normal characters (letters, numbers, symbols)
-        if (len(event.keysym) == 1 or 
-            event.keysym in allowed_keys or
+        # Allow special characters commonly used in passwords
+        special_chars = {
+            'slash', 'at', 'numbersign', 'dollar', 'percent', 'asciicircum',
+            'ampersand', 'asterisk', 'parenleft', 'parenright', 'minus', 'underscore',
+            'plus', 'equal', 'bracketleft', 'bracketright', 'braceleft', 'braceright',
+            'backslash', 'bar', 'semicolon', 'colon', 'apostrophe', 'quotedbl',
+            'comma', 'period', 'less', 'greater', 'question', 'grave', 'asciitilde',
+            'exclam'
+        }
+        
+        # Block dangerous key combinations first
+        if event.state & 0x4:  # Control key pressed
+            if event.keysym in ['c', 'v', 'x', 'z', 'a', 't']:  # Ctrl+C, Ctrl+V, etc.
+                return "break"
+                
+        if event.state & 0x8:  # Alt key pressed
+            return "break"  # Block all Alt combinations
+            
+        if event.state & 0x40:  # Super/Windows key pressed
+            return "break"  # Block all Super combinations
+        
+        # Allow normal characters (single character keysyms)
+        if len(event.keysym) == 1:
+            return  # Allow single characters (a-z, A-Z, 0-9, and symbols like /, @, etc.)
+            
+        # Allow specific named keys
+        if (event.keysym in allowed_keys or 
+            event.keysym in special_chars or
             event.keysym.startswith('KP_')):  # Keypad numbers
             return  # Allow this key
         
-        # Block everything else (including Super, Alt+Tab, Ctrl+Alt+T, etc.)
+        # Block everything else
         return "break"
         
     def on_unlock_attempt(self, event=None):
