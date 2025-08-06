@@ -192,7 +192,15 @@ class TestFTLock:
             if os.path.exists(bg_path):
                 # Load and resize background image to fit screen
                 bg_image = Image.open(bg_path)
-                bg_image = bg_image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
+                
+                # Handle different Pillow versions for resampling
+                try:
+                    # New Pillow versions (10.0.0+)
+                    bg_image = bg_image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
+                except AttributeError:
+                    # Older Pillow versions
+                    bg_image = bg_image.resize((screen_width, screen_height), Image.LANCZOS)
+                
                 self.bg_photo = ImageTk.PhotoImage(bg_image)
                 
                 # Create background label that covers entire screen
