@@ -14,7 +14,6 @@ import subprocess
 import time
 import signal
 import getpass
-import psutil
 from datetime import datetime
 import threading
 
