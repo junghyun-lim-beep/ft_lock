@@ -387,7 +387,7 @@ class TestFTLock:
             print("✓ Test password 'test' also works for quick testing")
         else:
             print("⚠ PAM not available - Only test password 'test' works")
-            print("  Install PAM: sudo apt install python3-pam")
+            print("  Install PAM: apt install python3-pam")
         
         print("Press ESC to exit test mode")
         

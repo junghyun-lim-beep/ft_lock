@@ -14,6 +14,7 @@ import subprocess
 import time
 import signal
 import getpass
+import psutil
 from datetime import datetime
 import threading
 
@@ -23,10 +24,14 @@ class FTLock:
         self.root = None
         self.password_entry = None
         self.status_label = None
+        self.time_label = None  # 실시간 시간 라벨
+        self.date_label = None  # 실시간 날짜 라벨
         self.attempts = 0
         self.max_attempts = 3
         self.current_user = getpass.getuser()
         self.locked = False
+        self.lockout_active = False  # 5분 잠금 상태
+        self.lockout_start_time = None  # 잠금 시작 시간
         self.setup_signal_handlers()
         
     def setup_signal_handlers(self):
@@ -40,29 +45,61 @@ class FTLock:
             self.root.quit()
         sys.exit(0)
         
+    def block_all_keys(self, event):
+        """Block all key combinations except allowed ones"""
+        # Allow basic typing keys and navigation keys
+        allowed_keys = {
+            'Return', 'BackSpace', 'Delete', 'Left', 'Right', 'Home', 'End',
+            'Tab', 'space', 'Space'  # Space key
+        }
+        
+        # Allow special characters commonly used in passwords
+        special_chars = {
+            'slash', 'at', 'numbersign', 'dollar', 'percent', 'asciicircum',
+            'ampersand', 'asterisk', 'parenleft', 'parenright', 'minus', 'underscore',
+            'plus', 'equal', 'bracketleft', 'bracketright', 'braceleft', 'braceright',
+            'backslash', 'bar', 'semicolon', 'colon', 'apostrophe', 'quotedbl',
+            'comma', 'period', 'less', 'greater', 'question', 'grave', 'asciitilde',
+            'exclam'
+        }
+        
+        # Block dangerous key combinations first
+        if event.state & 0x4:  # Control key pressed
+            if event.keysym in ['c', 'v', 'x', 'z', 'a', 't']:  # Ctrl+C, Ctrl+V, etc.
+                return "break"
+                
+        if event.state & 0x8:  # Alt key pressed
+            return "break"  # Block all Alt combinations
+            
+        if event.state & 0x40:  # Super/Windows key pressed
+            return "break"  # Block all Super combinations
+        
+        # Allow normal characters (single character keysyms)
+        if len(event.keysym) == 1:
+            return  # Allow single characters (a-z, A-Z, 0-9, and symbols like /, @, etc.)
+            
+        # Allow specific named keys
+        if (event.keysym in allowed_keys or 
+            event.keysym in special_chars or
+            event.keysym.startswith('KP_')):  # Keypad numbers
+            return  # Allow this key
+        
+        # Block everything else
+        return "break"
+        
     def disable_virtual_terminals(self):
-        """Disable virtual terminal switching"""
-        try:
-            # Disable Ctrl+Alt+F1-F12 switching
-            subprocess.run(['sudo', '-n', 'chvt', '7'], 
-                         stderr=subprocess.DEVNULL, check=False)
-            for i in range(1, 13):
-                subprocess.run(['sudo', '-n', 'deallocvt', str(i)], 
-                             stderr=subprocess.DEVNULL, check=False)
-        except Exception as e:
-            print(f"Warning: Could not disable VT switching: {e}")
+        """Disable virtual terminal switching (removed - no sudo required)"""
+        # VT switching blocking removed to avoid sudo requirement
+        # Basic input grabbing and key blocking provides sufficient security
+        pass
             
     def enable_virtual_terminals(self):
-        """Re-enable virtual terminal switching"""
-        try:
-            for i in range(1, 13):
-                subprocess.run(['sudo', '-n', 'openvt', '-c', str(i)], 
-                             stderr=subprocess.DEVNULL, check=False)
-        except Exception as e:
-            print(f"Warning: Could not re-enable VT switching: {e}")
+        """Re-enable virtual terminal switching (removed - no sudo required)"""
+        # VT switching re-enabling removed to avoid sudo requirement
+        pass
             
     def grab_input(self):
-        """Grab keyboard and mouse input"""
+        """Enhanced input grabbing to prevent bypass"""
         try:
             # Ensure window is visible and updated
             self.root.update_idletasks()
@@ -75,19 +112,37 @@ class FTLock:
     def _delayed_grab(self):
         """Delayed input grabbing after window is ready"""
         try:
+            # Global grab to capture all input
             self.root.grab_set_global()
             self.root.focus_force()
             if self.password_entry:
                 self.password_entry.focus_set()
+                
+            # Keep trying to maintain focus
+            self.root.after(100, self._maintain_focus)
         except Exception as e:
             print(f"Warning: Delayed grab failed: {e}")
-            # Try alternative focus method
+            
+    def _maintain_focus(self):
+        """Continuously maintain focus and input grab"""
+        if self.locked:
             try:
-                self.root.focus_set()
+                # Re-grab if lost
+                if not self.root.grab_current():
+                    self.root.grab_set_global()
+                
+                # Ensure window stays on top and focused
+                self.root.attributes('-topmost', True)
+                self.root.focus_force()
+                
                 if self.password_entry:
                     self.password_entry.focus_set()
-            except:
+                    
+            except Exception:
                 pass
+            
+            # Schedule next focus check
+            self.root.after(100, self._maintain_focus)
             
     def authenticate_user(self, username, password):
         """Authenticate user using PAM"""
@@ -117,22 +172,64 @@ class FTLock:
         
     def _authenticate_threaded(self, password):
         """Perform authentication in separate thread"""
+        # Check if still in lockout period
+        if self.lockout_active:
+            if self.lockout_start_time:
+                elapsed = time.time() - self.lockout_start_time
+                remaining = 300 - elapsed  # 300초 = 5분
+                
+                if remaining > 0:
+                    minutes = int(remaining // 60)
+                    seconds = int(remaining % 60)
+                    self.root.after(0, lambda: self.status_label.config(
+                        text=f"System locked. Wait {minutes}m {seconds}s more.", 
+                        foreground="red"))
+                    return
+                else:
+                    # 5분이 지났으므로 잠금 해제
+                    self.lockout_active = False
+                    self.lockout_start_time = None
+                    self.attempts = 0
+        
+        # Try PAM authentication
         if self.authenticate_user(self.current_user, password):
-            self.unlock_screen()
-        else:
-            self.attempts += 1
-            remaining = self.max_attempts - self.attempts
+            self.attempts = 0  # 성공 시 시도 횟수 리셋
+            self.lockout_active = False  # 잠금 해제
+            self.root.after(0, lambda: self.status_label.config(
+                text="Authentication successful!", foreground="green"))
+            self.root.after(500, self.unlock_screen)
+            return
+        
+        # Authentication failed
+        self.attempts += 1
+        remaining = self.max_attempts - self.attempts
+        
+        if self.attempts >= self.max_attempts:
+            # 5분 잠금 시작
+            self.lockout_active = True
+            self.lockout_start_time = time.time()
             
-            if self.attempts >= self.max_attempts:
-                self.root.after(0, lambda: self.status_label.config(
-                    text=f"Max attempts reached. System will be locked for 5 minutes.", 
-                    foreground="red"))
-                time.sleep(300)  # 5 minute lockout
-                self.attempts = 0
-            else:
-                self.root.after(0, lambda: self.status_label.config(
-                    text=f"Invalid password. {remaining} attempts remaining.", 
-                    foreground="red"))
+            self.root.after(0, lambda: self.status_label.config(
+                text=f"Max attempts reached. System locked for 5 minutes.", 
+                foreground="red"))
+            
+            # 5분 후 자동 해제
+            self.root.after(300000, self._clear_lockout)  # 300000ms = 5분
+        else:
+            self.root.after(0, lambda: self.status_label.config(
+                text=f"Invalid password. {remaining} attempts remaining.", 
+                foreground="red"))
+    
+    def _clear_lockout(self):
+        """Clear lockout after 5 minutes"""
+        if self.lockout_active:
+            self.lockout_active = False
+            self.lockout_start_time = None
+            self.attempts = 0
+            if self.status_label:
+                self.status_label.config(
+                    text="Lockout expired. You may try again.", 
+                    foreground="orange")
                     
     def unlock_screen(self):
         """Unlock the screen and exit"""
@@ -140,6 +237,18 @@ class FTLock:
         self.enable_virtual_terminals()
         if self.root:
             self.root.quit()
+            
+    def update_time(self):
+        """Update time and date in real-time"""
+        if self.locked and self.time_label and self.date_label:
+            current_time = datetime.now().strftime("%H:%M:%S")  # 초까지 표시
+            date_str = datetime.now().strftime("%A, %B %d")
+            
+            self.time_label.config(text=current_time)
+            self.date_label.config(text=date_str)
+            
+            # 1초마다 업데이트
+            self.root.after(1000, self.update_time)
             
     def create_lock_screen(self):
         """Create the lock screen GUI with full screen background"""
@@ -150,11 +259,24 @@ class FTLock:
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
         self.root.attributes('-topmost', True)
-        self.root.overrideredirect(True)
         
-        # Get screen dimensions
+        # Get screen dimensions BEFORE overrideredirect
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
+        
+        # Now remove window decorations
+        self.root.overrideredirect(True)
+        
+        # Force window to cover entire screen
+        self.root.geometry(f"{screen_width}x{screen_height}+0+0")
+        
+        # Block all key combinations globally
+        self.root.bind('<Key>', self.block_all_keys)
+        self.root.bind('<KeyPress>', self.block_all_keys)
+        
+        # Block window manager protocols
+        self.root.protocol("WM_DELETE_WINDOW", lambda: None)
+        self.root.protocol("WM_TAKE_FOCUS", lambda: self.root.focus_force())
         
         # Load and set background image
         try:
@@ -175,7 +297,7 @@ class FTLock:
                 
                 # Create background label that covers entire screen
                 bg_label = tk.Label(self.root, image=self.bg_photo)
-                bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+                bg_label.place(x=0, y=0, width=screen_width, height=screen_height)
             else:
                 # Fallback to gradient background
                 self.root.configure(bg='#1a1a2e')
@@ -183,38 +305,25 @@ class FTLock:
             print(f"Warning: Could not load background image: {e}")
             self.root.configure(bg='#1a1a2e')
         
-        # Create top-left container for passcode input
-        input_container = tk.Frame(self.root, bg='rgba(0,0,0,0.7)', relief='flat')
-        input_container.place(x=40, y=40, width=400, height=300)
-        
-        # Configure transparent background for container
-        try:
-            # Create a semi-transparent overlay
-            overlay = tk.Frame(input_container, bg='black')
-            overlay.place(x=0, y=0, relwidth=1, relheight=1)
-            overlay.configure(bg='#000000')
-            # Make it semi-transparent by adjusting the alpha (not directly supported in tkinter)
-            # So we'll use a dark background with some opacity effect
-        except:
-            input_container.configure(bg='#000000')
+        # Create center container for passcode input (가운데로 이동)
+        input_container = tk.Frame(self.root, bg='black', relief='flat')
+        input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
         
         # Lock icon in input container
         lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
                              bg='black', fg='white')
         lock_label.pack(pady=(20, 10))
         
-        # System info in top left
+        # System info (실시간 업데이트를 위해 라벨을 인스턴스 변수로 저장)
         hostname = os.uname().nodename
-        current_time = datetime.now().strftime("%H:%M")
-        date_str = datetime.now().strftime("%A, %B %d")
         
-        time_label = tk.Label(input_container, text=current_time, 
+        self.time_label = tk.Label(input_container, text="", 
                              font=("Arial", 20, "bold"), bg='black', fg='white')
-        time_label.pack(pady=(0, 2))
+        self.time_label.pack(pady=(0, 2))
         
-        date_label = tk.Label(input_container, text=date_str,
+        self.date_label = tk.Label(input_container, text="",
                              font=("Arial", 12), bg='black', fg='gray')
-        date_label.pack(pady=(0, 15))
+        self.date_label.pack(pady=(0, 15))
         
         # Password prompt
         prompt_label = tk.Label(input_container, text="Enter Password:",
@@ -232,6 +341,9 @@ class FTLock:
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
+        # Allow only specific keys in password entry
+        self.password_entry.bind('<Key>', lambda e: None if self.block_all_keys(e) != "break" else "break")
+        
         # Unlock button with modern styling
         unlock_btn = tk.Button(input_container, text="Unlock", font=("Arial", 12, "bold"),
                               command=self.on_unlock_attempt, 
@@ -240,7 +352,7 @@ class FTLock:
         unlock_btn.pack(pady=(0, 10))
         
         # Status label
-        self.status_label = tk.Label(input_container, text="", font=("Arial", 10),
+        self.status_label = tk.Label(input_container, text="Enter your password to unlock", font=("Arial", 10),
                                     bg='black', fg='orange', wraplength=350)
         self.status_label.pack(pady=(0, 10))
         
@@ -253,12 +365,12 @@ class FTLock:
                             font=("Arial", 12), bg='black', fg='gray')
         user_info.pack()
         
-        # Disable window manager functions
-        self.root.protocol("WM_DELETE_WINDOW", lambda: None)
-        
         # Ensure window is shown before grabbing input
         self.root.update()
         self.grab_input()
+        
+        # 실시간 시간 업데이트 시작
+        self.update_time()
         
         return self.root
         
@@ -346,18 +458,8 @@ class FTLock:
         except Exception as e:
             print(f"✗ Hostname resolution error: {e}")
             
-        # Test sudo access (non-interactive)
-        try:
-            result = subprocess.run(['sudo', '-n', 'true'], 
-                                  capture_output=True, text=True)
-            if result.returncode == 0:
-                print("✓ Sudo access available")
-            else:
-                print("⚠ Sudo requires password (VT switching may not work)")
-        except Exception as e:
-            print(f"✗ Sudo test error: {e}")
-            
         print("\nComponent test complete.")
+        print("Note: VT switching protection disabled (no sudo required)")
 
 
 def check_dependencies():
@@ -366,7 +468,7 @@ def check_dependencies():
         import pam
     except ImportError:
         print("Error: python3-pam not installed")
-        print("Install with: sudo apt install python3-pam")
+        print("Install with: apt install python3-pam")
         return False
         
     return True
