@@ -197,7 +197,7 @@ class TestFTLock:
                 
                 # Create background label that covers entire screen
                 bg_label = tk.Label(self.root, image=self.bg_photo)
-                bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+                bg_label.place(x=0, y=0, width=screen_width, height=screen_height)
             else:
                 # Fallback to gradient background
                 self.root.configure(bg='#1a1a2e')
