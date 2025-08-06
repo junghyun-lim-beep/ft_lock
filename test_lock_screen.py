@@ -171,7 +171,16 @@ class TestFTLock:
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
         self.root.attributes('-topmost', True)
-        self.root.overrideredirect(True)  # Remove window decorations completely
+        
+        # Get screen dimensions BEFORE overrideredirect
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        
+        # Now remove window decorations
+        self.root.overrideredirect(True)
+        
+        # Force window to cover entire screen
+        self.root.geometry(f"{screen_width}x{screen_height}+0+0")
         
         # Block all key combinations globally
         self.root.bind('<Key>', self.block_all_keys)
@@ -180,10 +189,6 @@ class TestFTLock:
         # Block window manager protocols
         self.root.protocol("WM_DELETE_WINDOW", lambda: None)
         self.root.protocol("WM_TAKE_FOCUS", lambda: self.root.focus_force())
-        
-        # Get screen dimensions
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
         
         # Load and set background image
         try:
@@ -196,7 +201,7 @@ class TestFTLock:
                 
                 # Create background label that covers entire screen
                 bg_label = tk.Label(self.root, image=self.bg_photo)
-                bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+                bg_label.place(x=0, y=0, width=screen_width, height=screen_height)
             else:
                 # Fallback to gradient background
                 self.root.configure(bg='#1a1a2e')
