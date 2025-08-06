@@ -47,6 +47,15 @@ docker run --rm -v $(pwd):/workspace -w /workspace ubuntu:22.04 bash -c "
     echo '   Installing python-pam...'
     pip3 install python-pam
     
+    echo '   Installing psutil...'
+    pip3 install psutil
+    
+    echo '   Installing six...'
+    pip3 install six
+    
+    # echo '   Verifying pam import...'
+    # python3 -c \"import pam; print('PAM module working')\" || echo \"PAM import failed\"
+    
     echo '🎨 Step 6: Creating background image...'
     python3 create_background.py
     if [ -f 'images/lock_background.png' ]; then
@@ -58,13 +67,36 @@ docker run --rm -v $(pwd):/workspace -w /workspace ubuntu:22.04 bash -c "
     echo '⚙️  Step 7: Building Linux executable...'
     echo '   This may take 2-3 minutes...'
     if [ -f 'images/lock_background.png' ]; then
-        pyinstaller --onefile --name 'ft-lock' --add-data 'images:images' ft_lock.py --distpath /workspace/dist
+        pyinstaller --onefile --name 'ft-lock' \
+            --add-data 'images:images' \
+            --hidden-import=six \
+            --hidden-import=pam \
+            --hidden-import=psutil \
+            --hidden-import=PIL \
+            --hidden-import=PIL.Image \
+            --hidden-import=PIL.ImageTk \
+            --hidden-import=PIL.ImageDraw \
+            --hidden-import=tkinter \
+            --hidden-import=tkinter.ttk \
+            --hidden-import=tkinter.messagebox \
+            ft_lock.py --distpath /workspace/dist
     else
-        pyinstaller --onefile --name 'ft-lock' ft_lock.py --distpath /workspace/dist
+        pyinstaller --onefile --name 'ft-lock' \
+            --hidden-import=six \
+            --hidden-import=pam \
+            --hidden-import=psutil \
+            --hidden-import=PIL \
+            --hidden-import=PIL.Image \
+            --hidden-import=PIL.ImageTk \
+            --hidden-import=tkinter \
+            --hidden-import=tkinter.ttk \
+            --hidden-import=tkinter.messagebox \
+            ft_lock.py --distpath /workspace/dist
     fi
     
     echo '🔧 Step 8: Setting file permissions...'
     chmod +x /workspace/dist/ft-lock
+    
     chown \$(stat -c '%u:%g' /workspace) /workspace/dist/ft-lock
     
     echo '🧹 Step 9: Cleaning build artifacts...'
