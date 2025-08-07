@@ -35,6 +35,7 @@ class TestFTLock:
         self.locked = False
         self.lockout_active = False  # 5분 잠금 상태 추가
         self.lockout_start_time = None  # 잠금 시작 시간
+        self.password_text = ""  # 패스워드 텍스트 저장용
         
     def authenticate_user(self, username, password):
         """Authenticate user using PAM (if available)"""
@@ -91,10 +92,18 @@ class TestFTLock:
         # Block everything else
         return "break"
         
+    def update_password_display(self):
+        """Update password display with dots"""
+        if hasattr(self, 'password_display'):
+            dots = '•' * len(self.password_text)
+            display_text = f"[{dots}]" if dots else "[패스워드 입력창]"
+            self.password_display.config(text=display_text)
+    
     def on_unlock_attempt(self, event=None):
         """Handle unlock attempt (test version with PAM support)"""
-        password = self.password_entry.get()
-        self.password_entry.delete(0, tk.END)
+        password = self.password_text
+        self.password_text = ""
+        self.update_password_display()
         
         if not password:
             self.status_label.config(text="Please enter password", foreground="orange")
@@ -250,24 +259,33 @@ class TestFTLock:
         self.root.title("FT Lock - Test Mode")
         self.root.configure(bg='black')
         
-        # HiDPI 대응: 강력한 스케일링 고정
+        # HiDPI 완전 해결: 물리적 픽셀 기준 강제 설정
         try:
-            # 1. tkinter 스케일링 비활성화
-            self.root.tk.call('tk', 'scaling', 1.0)
+            # 1. 시스템 DPI 정보 가져오기
+            import subprocess
+            import re
             
-            # 2. DPI 인식 완전 비활성화 (Windows)
             try:
-                import ctypes
-                ctypes.windll.user32.SetProcessDPIAware()
+                # xrandr로 실제 해상도와 스케일링 정보 확인
+                result = subprocess.run(['xrandr'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    # 실제 물리적 해상도 추출
+                    matches = re.findall(r'(\d+)x(\d+).*\*', result.stdout)
+                    if matches:
+                        physical_width, physical_height = map(int, matches[0])
+                        print(f"Physical resolution detected: {physical_width}x{physical_height}")
+                        
+                        # 강제로 물리적 해상도 사용
+                        self.root.geometry(f"{physical_width}x{physical_height}+0+0")
             except:
                 pass
-                
-            # 3. 폰트 DPI 고정
-            self.root.option_add('*Font', 'Arial 12')
             
-            print("HiDPI: Enhanced scaling disabled")
+            # 2. tkinter 스케일링 완전 비활성화
+            self.root.tk.call('tk', 'scaling', 1.0)
+            
+            print("HiDPI: Physical resolution forced")
         except:
-            print("HiDPI: Basic scaling disabled")
+            print("HiDPI: Fallback mode")
             
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
@@ -316,26 +334,14 @@ class TestFTLock:
             self.root.configure(bg='#1a1a2e')
         
         # Create center container for passcode input (가운데로 이동)
-        input_container = tk.Frame(self.root, bg='black', relief='flat', highlightbackground='white', highlightthickness=2)  # 흰색 테두리로 경계 확인
+        input_container = tk.Frame(self.root, bg='black', relief='flat')
         input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
-        print(f"Input container placed at center with size 400x350")
-        
-        # 컨테이너가 실제로 배치되었는지 확인
-        self.root.update_idletasks()
-        try:
-            container_x = input_container.winfo_x()
-            container_y = input_container.winfo_y()
-            container_w = input_container.winfo_width()
-            container_h = input_container.winfo_height()
-            print(f"Container actual position: {container_x},{container_y} size: {container_w}x{container_h}")
-        except:
-            print("Could not get container position info")
+
         
         # Lock icon in input container
         lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
-                             bg='black', fg='white', highlightbackground='yellow', highlightthickness=1)
+                             bg='black', fg='white')
         lock_label.pack(pady=(20, 10))
-        print("Lock icon added")
         
         # System info (실시간 업데이트를 위해 라벨을 인스턴스 변수로 저장)
         hostname = os.uname().nodename
@@ -353,22 +359,28 @@ class TestFTLock:
                                font=("Arial", 14), bg='black', fg='white')
         prompt_label.pack(pady=(0, 8))
         
-        # Password entry with modern styling
-        entry_frame = tk.Frame(input_container, bg='black', highlightbackground='green', highlightthickness=2)
-        entry_frame.pack(pady=(0, 15))
-        print("Entry frame added")
+        # Password entry 대신 Label + Text로 구현
+        self.password_display = tk.Label(input_container, text="[패스워드 입력창]", 
+                                        font=("Arial", 16), bg='#2a2a3e', fg='white',
+                                        relief='flat', bd=2, width=25, height=2)
+        self.password_display.pack(pady=15)
         
-        self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 24),  # 폰트 크기 증가
-                                      width=15, bg='yellow', fg='black',  # 노란 배경으로 눈에 띄게
-                                      relief='solid', bd=8, insertbackground='red',
-                                      highlightbackground='blue', highlightthickness=8)  # 테두리 두껍게
-        self.password_entry.pack(ipady=15, ipadx=20, fill=tk.X)  # 더 크게 패딩
-        print("Password entry added with LARGE yellow background")
-        self.password_entry.focus_set()
-        self.password_entry.bind('<Return>', self.on_unlock_attempt)
+        # 실제 패스워드 저장용
+        self.password_text = ""
         
-        # Allow only specific keys in password entry
-        self.password_entry.bind('<Key>', lambda e: None if self.block_all_keys(e) != "break" else "break")
+        # 패스워드 입력을 위한 키 바인딩
+        def handle_key_input(event):
+            if event.keysym == 'Return':
+                self.on_unlock_attempt()
+            elif event.keysym == 'BackSpace':
+                if self.password_text:
+                    self.password_text = self.password_text[:-1]
+                    self.update_password_display()
+            elif len(event.char) == 1 and event.char.isprintable():
+                self.password_text += event.char
+                self.update_password_display()
+        
+        self.root.bind('<KeyPress>', handle_key_input)
         
         # Unlock button with modern styling
         unlock_btn = tk.Button(input_container, text="Unlock", font=("Arial", 12, "bold"),
