@@ -38,146 +38,94 @@ class TestFTLock:
         self.lockout_start_time = None  # 잠금 시작 시간
         
     def get_active_monitor_scale(self):
-        """실제 활성화된 모니터의 스케일 가져오기"""
+        """실제 활성화된 모니터의 스케일 가져오기 (테스트용 - 상세 로그 포함)"""
         actual_scale = 1.0
         
-        print("=" * 60)
-        print("활성 모니터 스케일 감지")
-        print("=" * 60)
+        print("활성 모니터 스케일 감지 중...")
         
         try:
-            # 1. 활성 모니터의 상세 정보 가져오기
             import subprocess
+            import glob
+            import re
             
-            # xrandr --listactivemonitors로 기본 정보
+            # 1. 활성 모니터 정보 가져오기
             result = subprocess.run(['xrandr', '--listactivemonitors'], 
                                   capture_output=True, text=True, timeout=5)
             
             if result.returncode != 0:
-                print("❌ xrandr --listactivemonitors 실행 실패")
+                print("❌ xrandr 실행 실패")
                 return 1.0
             
             active_connector = None
-            active_resolution = None
-            active_position = None
-            
-            print("xrandr --listactivemonitors 출력:")
-            print(result.stdout.strip())
-            print()
             
             for line in result.stdout.split('\n'):
                 if ':' in line and '+' in line:
-                    # "0: +*eDP 3840/597x2160/336+0+0 eDP" 형태 파싱
                     parts = line.split()
                     if len(parts) >= 2:
                         active_connector = parts[-1]  # connector
-                        
-                        # 해상도와 위치 추출
-                        for part in parts:
-                            if 'x' in part and '+' in part:
-                                # "3840/597x2160/336+0+0" 형태에서 해상도와 위치 추출
-                                if '/' in part:
-                                    resolution_part = part.split('/')[0] + 'x' + part.split('/')[2].split('+')[0]
-                                    position_part = '+'.join(part.split('+')[1:])
-                                else:
-                                    # 간단한 형태 "1920x1080+0+0"
-                                    res_pos = part.split('+')
-                                    resolution_part = res_pos[0]
-                                    position_part = '+'.join(res_pos[1:])
-                                
-                                active_resolution = resolution_part
-                                active_position = position_part
-                                break
                         break
             
-            print(f"🎯 활성 모니터 정보:")
-            print(f"   Connector: {active_connector}")
-            print(f"   Resolution: {active_resolution}")
-            print(f"   Position: +{active_position}")
-            
-            # 2. cat으로 EDID 바이너리 읽어서 시리얼 찾기
-            active_serial = None
-            
-            print(f"\ncat으로 EDID에서 시리얼 찾기:")
-            print(f"   Connector: {active_connector}")
-            
-            try:
-                import glob
-                edid_pattern = f'/sys/class/drm/card*/card*-{active_connector}*/edid'
-                edid_files = glob.glob(edid_pattern)
-                
-                if edid_files:
-                    edid_file = edid_files[0]
-                    print(f"   EDID 파일: {edid_file}")
-                    
-                    # cat으로 바이너리 읽기
-                    cat_result = subprocess.run(['cat', edid_file], 
-                                              capture_output=True, timeout=5)
-                    
-                    if cat_result.returncode == 0:
-                        edid_data = cat_result.stdout
-                        print(f"   cat 바이너리 길이: {len(edid_data)} bytes")
-                        print(f"   처음 32바이트: {edid_data[:32].hex()}")
-                        
-                        # 바이너리에서 읽을 수 있는 ASCII 문자열 추출
-                        ascii_chars = []
-                        for byte in edid_data:
-                            if 32 <= byte <= 126:  # 출력 가능한 ASCII
-                                ascii_chars.append(chr(byte))
-                            else:
-                                ascii_chars.append('.')
-                        
-                        ascii_string = ''.join(ascii_chars)
-                        print(f"   ASCII 변환: '{ascii_string[:100]}...'")  # 처음 100자만
-                        
-                        # 시리얼 같은 패턴 찾기 (연속된 영숫자)
-                        import re
-                        serial_patterns = re.findall(r'[A-Za-z0-9]{6,}', ascii_string)
-                        print(f"   발견된 패턴들: {serial_patterns}")
-                        
-                        if serial_patterns:
-                            active_serial = serial_patterns[0]  # 첫 번째 패턴 사용
-                            print(f"   ✓ 시리얼로 사용: '{active_serial}'")
-                        else:
-                            # 패턴이 없으면 전체를 hex로 변환해서 사용
-                            active_serial = edid_data.hex()[:20]  # 처음 20자만
-                            print(f"   ✓ hex 시리얼: '{active_serial}'")
-                    else:
-                        print(f"   cat 실행 실패")
-                else:
-                    print("   EDID 파일 없음")
-                    
-            except Exception as e:
-                print(f"   오류: {e}")
-            
-            print(f"\n최종 시리얼: '{active_serial}'")
+            print(f"활성 모니터: {active_connector}")
             
             if not active_connector:
                 print("❌ 활성 모니터를 찾을 수 없음")
                 return 1.0
             
-            # 3. monitors.xml에서 시리얼 번호로만 매칭
+            # 2. EDID에서 시리얼 번호 추출
+            active_serial = None
+            
+            try:
+                edid_pattern = f'/sys/class/drm/card*/card*-{active_connector}*/edid'
+                edid_files = glob.glob(edid_pattern)
+                
+                if edid_files:
+                    edid_file = edid_files[0]
+                    
+                    cat_result = subprocess.run(['cat', edid_file], 
+                                              capture_output=True, timeout=5)
+                    
+                    if cat_result.returncode == 0:
+                        edid_data = cat_result.stdout
+                        
+                        if len(edid_data) > 0:
+                            # ASCII 문자열 추출
+                            ascii_chars = []
+                            for byte in edid_data:
+                                if 32 <= byte <= 126:
+                                    ascii_chars.append(chr(byte))
+                                else:
+                                    ascii_chars.append('.')
+                            
+                            ascii_string = ''.join(ascii_chars)
+                            
+                            # 시리얼 패턴 찾기
+                            serial_patterns = re.findall(r'[A-Za-z0-9]{6,}', ascii_string)
+                            
+                            if serial_patterns:
+                                active_serial = serial_patterns[0]
+                                print(f"EDID 시리얼: {active_serial}")
+                            else:
+                                active_serial = edid_data.hex()[:20]
+                                print(f"EDID hex: {active_serial}")
+            except Exception as e:
+                print(f"EDID 읽기 실패: {e}")
+            
+            # 3. monitors.xml에서 매칭
             monitors_file = os.path.expanduser("~/.config/monitors.xml")
             if os.path.exists(monitors_file):
                 tree = ET.parse(monitors_file)
                 root = tree.getroot()
                 
                 configs = root.findall('configuration')
-                print(f"\nmonitors.xml에서 총 {len(configs)}개 configuration 발견")
+                print(f"monitors.xml: {len(configs)}개 configuration")
                 
-                exact_matches = []
-                
+                # 시리얼 번호로 매칭 시도
                 for config_idx, config in enumerate(configs):
-                    print(f"\n=== Configuration {config_idx + 1} 분석 ===")
-                    
                     logicalmonitors = config.findall('logicalmonitor')
                     
                     for lm_idx, lm in enumerate(logicalmonitors):
-                        # 스케일 정보
                         scale_elem = lm.find('scale')
                         scale_val = float(scale_elem.text) if scale_elem is not None else 1.0
-                        
-                        print(f"  LogicalMonitor {lm_idx + 1}: Scale={scale_val}")
                         
                         for monitor in lm.findall('monitor'):
                             monitorspec = monitor.find('monitorspec')
@@ -188,86 +136,39 @@ class TestFTLock:
                                 connector_text = connector.text if connector is not None else 'N/A'
                                 xml_serial = serial.text if serial is not None else 'N/A'
                                 
-                                print(f"    Connector: {connector_text}")
-                                print(f"    XML Serial: '{xml_serial}'")
-                                print(f"    XML Serial 길이: {len(xml_serial) if xml_serial != 'N/A' else 0}")
-                                print(f"    실제 Serial: '{active_serial}'")
-                                print(f"    실제 Serial 길이: {len(active_serial) if active_serial else 0}")
-                                
-                                # 시리얼 비교 상세 로그
-                                if active_serial and xml_serial != 'N/A':
-                                    print(f"    시리얼 비교:")
-                                    print(f"      XML:  '{xml_serial}'")
-                                    print(f"      실제: '{active_serial}'")
-                                    print(f"      같음: {xml_serial == active_serial}")
-                                    print(f"      대소문자 무시: {xml_serial.lower() == active_serial.lower()}")
-                                    print(f"      공백 제거 후: '{xml_serial.strip()}' == '{active_serial.strip()}'")
-                                else:
-                                    print(f"    시리얼 비교 불가: active_serial={bool(active_serial)}, xml_serial_valid={xml_serial != 'N/A'}")
-                                
-                                # 시리얼 번호로만 매칭
+                                # 시리얼 번호로 매칭
                                 if (active_serial and xml_serial != 'N/A' and 
                                     xml_serial == active_serial):
-                                    
-                                    print(f"    🎯 시리얼 매칭 성공!")
-                                    
-                                    match_info = {
-                                        'config_idx': config_idx + 1,
-                                        'lm_idx': lm_idx + 1,
-                                        'scale': scale_val,
-                                        'connector': connector_text,
-                                        'serial': xml_serial
-                                    }
-                                    exact_matches.append(match_info)
-                                else:
-                                    print(f"    ❌ 시리얼 매칭 실패")
+                                    print(f"✅ 시리얼 매칭 성공! Config {config_idx+1}, Scale: {scale_val}")
+                                    return scale_val
                 
-                # 결과 선택
-                print(f"\n{'='*60}")
-                print("시리얼 매칭 결과:")
-                print("="*60)
+                # 시리얼 매칭 실패시 connector로 매칭
+                print("시리얼 매칭 실패, connector로 매칭 시도...")
+                for config_idx, config in enumerate(configs):
+                    logicalmonitors = config.findall('logicalmonitor')
+                    
+                    for lm_idx, lm in enumerate(logicalmonitors):
+                        scale_elem = lm.find('scale')
+                        scale_val = float(scale_elem.text) if scale_elem is not None else 1.0
+                        
+                        for monitor in lm.findall('monitor'):
+                            monitorspec = monitor.find('monitorspec')
+                            if monitorspec is not None:
+                                connector = monitorspec.find('connector')
+                                
+                                if (connector is not None and 
+                                    connector.text == active_connector):
+                                    print(f"✅ Connector 매칭 성공! Config {config_idx+1}, Scale: {scale_val}")
+                                    return scale_val
                 
-                if exact_matches:
-                    print(f"시리얼 번호로 매칭된 결과: {len(exact_matches)}개")
-                    
-                    for i, match in enumerate(exact_matches):
-                        print(f"\n{i+1}. Configuration {match['config_idx']}")
-                        print(f"   Scale: {match['scale']}")
-                        print(f"   Connector: {match['connector']}")
-                        print(f"   Serial: {match['serial']}")
-                    
-                    # 첫 번째 매칭 선택
-                    selected = exact_matches[0]
-                    actual_scale = selected['scale']
-                    
-                    print(f"\n🏆 선택된 모니터:")
-                    print(f"   Configuration: {selected['config_idx']}")
-                    print(f"   Scale: {actual_scale}")
-                    
-                else:
-                    print(f"❌ 시리얼 번호 매칭 실패")
-                    print(f"   찾는 시리얼: {active_serial}")
-                    print("   monitors.xml의 모든 시리얼:")
-                    
-                    for config_idx, config in enumerate(configs):
-                        logicalmonitors = config.findall('logicalmonitor')
-                        for lm_idx, lm in enumerate(logicalmonitors):
-                            for monitor in lm.findall('monitor'):
-                                monitorspec = monitor.find('monitorspec')
-                                if monitorspec is not None:
-                                    serial = monitorspec.find('serial')
-                                    if serial is not None:
-                                        print(f"     Config {config_idx+1}: {serial.text}")
+                print("❌ 매칭 실패, 기본값 사용")
             else:
-                print("❌ monitors.xml 파일이 없음")
+                print("❌ monitors.xml 없음")
                 
         except Exception as e:
             print(f"❌ 오류: {e}")
-            import traceback
-            traceback.print_exc()
         
-        print(f"\n최종 선택된 스케일: {actual_scale}")
-        print("="*60)
+        print(f"최종 스케일: {actual_scale}")
         return actual_scale
         
     def authenticate_user(self, username, password):

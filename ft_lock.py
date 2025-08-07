@@ -36,13 +36,120 @@ class FTLock:
         self.setup_signal_handlers()
         
     def get_display_scale(self):
-        """아이맥에서 실제 디스플레이 스케일 값 가져오기 (간단하고 확실한 방법)"""
+        """실제 활성화된 모니터의 스케일 가져오기 (monitors.xml과 시리얼 번호 매칭)"""
         actual_scale = 1.0
         
         try:
-            # 해상도 직접 비교 (가장 확실함)
             import subprocess
+            import glob
+            import re
             
+            # 1. 활성 모니터 정보 가져오기
+            result = subprocess.run(['xrandr', '--listactivemonitors'], 
+                                  capture_output=True, text=True, timeout=5)
+            
+            if result.returncode != 0:
+                return 1.0
+            
+            active_connector = None
+            
+            for line in result.stdout.split('\n'):
+                if ':' in line and '+' in line:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        active_connector = parts[-1]  # connector
+                        break
+            
+            if not active_connector:
+                return 1.0
+            
+            # 2. EDID에서 시리얼 번호 추출
+            active_serial = None
+            
+            try:
+                edid_pattern = f'/sys/class/drm/card*/card*-{active_connector}*/edid'
+                edid_files = glob.glob(edid_pattern)
+                
+                if edid_files:
+                    edid_file = edid_files[0]
+                    
+                    # cat으로 바이너리 읽기
+                    cat_result = subprocess.run(['cat', edid_file], 
+                                              capture_output=True, timeout=5)
+                    
+                    if cat_result.returncode == 0:
+                        edid_data = cat_result.stdout
+                        
+                        if len(edid_data) > 0:
+                            # ASCII 문자열 추출
+                            ascii_chars = []
+                            for byte in edid_data:
+                                if 32 <= byte <= 126:  # 출력 가능한 ASCII
+                                    ascii_chars.append(chr(byte))
+                                else:
+                                    ascii_chars.append('.')
+                            
+                            ascii_string = ''.join(ascii_chars)
+                            
+                            # 시리얼 패턴 찾기 (연속된 영숫자)
+                            serial_patterns = re.findall(r'[A-Za-z0-9]{6,}', ascii_string)
+                            
+                            if serial_patterns:
+                                active_serial = serial_patterns[0]  # 첫 번째 패턴 사용
+                            else:
+                                # 패턴이 없으면 hex 사용
+                                active_serial = edid_data.hex()[:20]
+            except:
+                pass
+            
+            # 3. monitors.xml에서 시리얼 번호로 매칭
+            monitors_file = os.path.expanduser("~/.config/monitors.xml")
+            if os.path.exists(monitors_file):
+                tree = ET.parse(monitors_file)
+                root = tree.getroot()
+                
+                configs = root.findall('configuration')
+                
+                for config in configs:
+                    logicalmonitors = config.findall('logicalmonitor')
+                    
+                    for lm in logicalmonitors:
+                        # 스케일 정보
+                        scale_elem = lm.find('scale')
+                        scale_val = float(scale_elem.text) if scale_elem is not None else 1.0
+                        
+                        for monitor in lm.findall('monitor'):
+                            monitorspec = monitor.find('monitorspec')
+                            if monitorspec is not None:
+                                connector = monitorspec.find('connector')
+                                serial = monitorspec.find('serial')
+                                
+                                connector_text = connector.text if connector is not None else 'N/A'
+                                xml_serial = serial.text if serial is not None else 'N/A'
+                                
+                                # 시리얼 번호로 매칭
+                                if (active_serial and xml_serial != 'N/A' and 
+                                    xml_serial == active_serial):
+                                    return scale_val
+                
+                # 시리얼 매칭 실패시 connector로 fallback
+                for config in configs:
+                    logicalmonitors = config.findall('logicalmonitor')
+                    
+                    for lm in logicalmonitors:
+                        scale_elem = lm.find('scale')
+                        scale_val = float(scale_elem.text) if scale_elem is not None else 1.0
+                        
+                        for monitor in lm.findall('monitor'):
+                            monitorspec = monitor.find('monitorspec')
+                            if monitorspec is not None:
+                                connector = monitorspec.find('connector')
+                                
+                                if (connector is not None and 
+                                    connector.text == active_connector):
+                                    return scale_val
+            
+            # 모든 매칭 실패시 기존 방식으로 fallback
             # 물리적 해상도 가져오기 (xrandr)
             xrandr_result = subprocess.run(['xrandr'], capture_output=True, text=True, timeout=5)
             physical_width = None
