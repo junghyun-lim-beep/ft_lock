@@ -255,32 +255,50 @@ class TestFTLock:
             # 1. tkinter 내부 스케일링 비활성화
             self.root.tk.call('tk', 'scaling', 1.0)
             
-            # 2. 실제 물리적 해상도 강제 사용
+            # 2. 다양한 방법으로 스케일링 감지 시도
             import subprocess
+            import os
+            
+            # 방법 1: gsettings로 스케일링 확인
             try:
-                # xrandr로 실제 물리적 해상도 확인
-                result = subprocess.run(['xrandr', '--current'], capture_output=True, text=True)
+                result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'scaling-factor'], 
+                                      capture_output=True, text=True)
                 if result.returncode == 0:
-                    import re
-                    # 현재 활성화된 해상도 찾기 (별표가 있는 것)
-                    matches = re.findall(r'(\d+)x(\d+).*\*', result.stdout)
-                    if matches:
-                        real_width, real_height = map(int, matches[0])
-                        print(f"Physical resolution: {real_width}x{real_height}")
-                        
-                        # tkinter가 감지한 해상도와 비교
-                        tk_width = self.root.winfo_screenwidth()
-                        tk_height = self.root.winfo_screenheight()
-                        print(f"Tkinter detected: {tk_width}x{tk_height}")
-                        
-                        if tk_width != real_width or tk_height != real_height:
-                            print(f"Scale detected! Forcing physical resolution...")
-                            # 물리적 해상도로 강제 설정
-                            self.root.geometry(f"{real_width}x{real_height}+0+0")
-                        else:
-                            print("No scaling detected")
+                    scale_factor = result.stdout.strip()
+                    print(f"GNOME scaling factor: {scale_factor}")
+            except:
+                pass
+            
+            # 방법 2: 환경변수 확인
+            gdk_scale = os.environ.get('GDK_SCALE', '1')
+            gdk_dpi_scale = os.environ.get('GDK_DPI_SCALE', '1')
+            print(f"GDK_SCALE: {gdk_scale}, GDK_DPI_SCALE: {gdk_dpi_scale}")
+            
+            # 방법 3: tkinter DPI 정보
+            try:
+                dpi = self.root.winfo_fpixels('1i')  # 1인치당 픽셀 수
+                print(f"Detected DPI: {dpi:.1f}")
+                if dpi > 120:  # 일반적으로 96 DPI가 100%
+                    print(f"High DPI detected (>{120})")
+            except:
+                pass
+                
+            # 방법 4: 화면 물리적 크기와 해상도로 DPI 계산
+            try:
+                screen_width_px = self.root.winfo_screenwidth()
+                screen_height_px = self.root.winfo_screenheight()
+                screen_width_mm = self.root.winfo_screenmmwidth()
+                screen_height_mm = self.root.winfo_screenmmheight()
+                
+                # DPI 계산 (25.4mm = 1inch)
+                dpi_x = screen_width_px / (screen_width_mm / 25.4)
+                dpi_y = screen_height_px / (screen_height_mm / 25.4)
+                
+                print(f"Screen: {screen_width_px}x{screen_height_px}px, {screen_width_mm}x{screen_height_mm}mm")
+                print(f"Calculated DPI: {dpi_x:.1f}x{dpi_y:.1f}")
+                
             except Exception as e:
-                print(f"Physical resolution detection failed: {e}")
+                print(f"DPI calculation failed: {e}")
                 
             print("Scale override attempted")
         except Exception as e:
