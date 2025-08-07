@@ -244,6 +244,24 @@ class TestFTLock:
             # 1초마다 업데이트
             self.root.after(1000, self.update_time)
             
+    def _check_entry_status(self):
+        """Entry 위젯 상태 확인 (간단한 디버깅)"""
+        try:
+            if hasattr(self, 'password_entry') and self.password_entry:
+                is_mapped = self.password_entry.winfo_ismapped()
+                is_viewable = self.password_entry.winfo_viewable()
+                width = self.password_entry.winfo_width()
+                height = self.password_entry.winfo_height()
+                
+                print(f"Entry status: mapped={is_mapped}, viewable={is_viewable}, size={width}x{height}")
+                
+                if not is_mapped or not is_viewable or width < 10 or height < 10:
+                    print("⚠️  Entry widget has visibility issues!")
+                else:
+                    print("✅ Entry widget appears to be visible")
+        except Exception as e:
+            print(f"Entry status check failed: {e}")
+            
     def create_lock_screen(self):
         """Create the lock screen GUI with full screen background"""
         self.root = tk.Tk()
@@ -316,16 +334,76 @@ class TestFTLock:
                                font=("Arial", 14), bg='black', fg='white')
         prompt_label.pack(pady=(0, 8))
         
-        # Password entry with modern styling
+        # Password entry with scaling-aware styling
+        print("Creating password entry with scaling detection...")
+        
+        # 스케일링 감지
+        try:
+            current_scale = self.root.tk.call('tk', 'scaling')
+            print(f"Detected scaling: {current_scale}")
+        except:
+            current_scale = 1.0
+            print("Could not detect scaling, using 1.0")
+        
         entry_frame = tk.Frame(input_container, bg='black')
         entry_frame.pack(pady=(0, 15))
         
-        self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 14),
-                                      width=25, bg='#2a2a3e', fg='white',
-                                      relief='flat', bd=0, insertbackground='white')
-        self.password_entry.pack(ipady=8, ipadx=10)
+        # 스케일링에 따른 설정 조정
+        if current_scale > 1.5:  # 200% 스케일
+            print("Using 200% scale settings")
+            font_size = 12
+            entry_width = 20
+            entry_height = 30
+            padding_y = 6
+            padding_x = 8
+        else:  # 100% 스케일
+            print("Using 100% scale settings")
+            font_size = 14
+            entry_width = 25
+            entry_height = 35
+            padding_y = 8
+            padding_x = 10
+        
+        self.password_entry = tk.Entry(entry_frame, 
+                                      show='•', 
+                                      font=("Arial", font_size),
+                                      width=entry_width, 
+                                      bg='#2a2a3e', 
+                                      fg='white',
+                                      relief='flat', 
+                                      bd=0, 
+                                      insertbackground='white')
+        self.password_entry.pack(ipady=padding_y, ipadx=padding_x)
+        
+        print(f"Entry created with font={font_size}, width={entry_width}, padding=({padding_x},{padding_y})")
+        
+        # 강제 업데이트로 확실한 렌더링
+        self.root.update_idletasks()
+        entry_frame.update_idletasks()
+        self.password_entry.update_idletasks()
+        
+        # 200% 스케일에서 추가 보장 조치
+        if current_scale > 1.5:
+            print("Applying additional measures for 200% scale...")
+            # 위젯 크기 강제 설정
+            self.password_entry.configure(width=entry_width)
+            # 테두리 추가로 가시성 향상
+            self.password_entry.configure(relief='solid', bd=1)
+            # 배경색을 더 밝게
+            self.password_entry.configure(bg='#3a3a4e')
+            
+            # 강제 업데이트 재시도
+            self.root.update()
+            entry_frame.update()
+            self.password_entry.update()
+            
+            print("200% scale adjustments applied")
+        
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
+        
+        # Entry 위젯 상태 확인 (디버깅용)
+        self.root.after(200, self._check_entry_status)
         
         # Allow only specific keys in password entry
         self.password_entry.bind('<Key>', lambda e: None if self.block_all_keys(e) != "break" else "break")
