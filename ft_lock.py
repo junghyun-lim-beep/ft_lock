@@ -36,58 +36,55 @@ class FTLock:
         self.setup_signal_handlers()
         
     def get_display_scale(self):
-        """여러 방법으로 디스플레이 스케일 값 가져오기"""
+        """아이맥에서 실제 디스플레이 스케일 값 가져오기 (간단하고 확실한 방법)"""
         actual_scale = 1.0
         
-        # 방법 1: monitors.xml 파일 확인
         try:
-            monitors_file = os.path.expanduser("~/.config/monitors.xml")
+            # 해상도 직접 비교 (가장 확실함)
+            import subprocess
             
-            if os.path.exists(monitors_file) and os.access(monitors_file, os.R_OK):
-                tree = ET.parse(monitors_file)
-                root = tree.getroot()
+            # 물리적 해상도 가져오기 (xrandr)
+            xrandr_result = subprocess.run(['xrandr'], capture_output=True, text=True, timeout=5)
+            physical_width = None
+            
+            if xrandr_result.returncode == 0:
+                # 연결된 디스플레이에서 해상도 추출
+                for line in xrandr_result.stdout.split('\n'):
+                    if ' connected' in line and 'x' in line:
+                        # 예: "eDP-1 connected primary 3840x2160+0+0"
+                        parts = line.split()
+                        for part in parts:
+                            if 'x' in part and '+' in part:
+                                resolution = part.split('+')[0]
+                                if 'x' in resolution:
+                                    physical_width = int(resolution.split('x')[0])
+                                    break
+                        if physical_width:
+                            break
+            
+            # 논리적 해상도 가져오기 (tkinter)
+            if physical_width:
+                temp_root = tk.Tk()
+                logical_width = temp_root.winfo_screenwidth()
+                temp_root.destroy()
                 
-                for logicalmonitor in root.findall('.//logicalmonitor'):
-                    scale_element = logicalmonitor.find('scale')
-                    if scale_element is not None:
-                        actual_scale = float(scale_element.text)
-                        break
-            else:
-                pass
-                
-        except Exception as e:
-            pass
-        
-        # 방법 2: gsettings로 fallback
-        if actual_scale == 1.0:
-            try:
-                import subprocess
-                result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'text-scaling-factor'], 
-                                      capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    text_scale = float(result.stdout.strip())
-                    if text_scale != 1.0:
-                        actual_scale = text_scale
-            except Exception as e:
-                pass
-        
-        # 방법 3: 해상도 비교로 추정
-        if actual_scale == 1.0:
-            try:
-                import subprocess
-                result = subprocess.run(['xrandr'], capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    # 4K 해상도면 보통 2.0 스케일 사용
-                    if '3840x2160' in result.stdout:
-                        # tkinter로 논리적 해상도 확인
-                        temp_root = tk.Tk()
-                        logical_width = temp_root.winfo_screenwidth()
-                        temp_root.destroy()
+                # 스케일 계산
+                if logical_width > 0:
+                    actual_scale = physical_width / logical_width
+                    
+                    # 일반적인 스케일 값으로 반올림
+                    if actual_scale >= 1.9:
+                        actual_scale = 2.0
+                    elif actual_scale >= 1.4:
+                        actual_scale = 1.5
+                    elif actual_scale >= 1.2:
+                        actual_scale = 1.25
+                    else:
+                        actual_scale = 1.0
                         
-                        if logical_width == 1920:  # 3840을 1920으로 스케일링
-                            actual_scale = 2.0
-            except Exception as e:
-                pass
+        except Exception as e:
+            # 모든 방법이 실패하면 기본값 사용
+            pass
         
         return actual_scale
         

@@ -38,130 +38,103 @@ class TestFTLock:
         self.lockout_start_time = None  # 잠금 시작 시간
         
     def get_display_scale(self):
-        """디스플레이 스케일 값 가져오기 (상세 로그 포함)"""
+        """monitors.xml에서 정확한 디스플레이 스케일 값 가져오기"""
         actual_scale = 1.0
         
         print("=" * 50)
-        print("스케일 감지 시작...")
+        print("monitors.xml에서 스케일 감지 시작...")
         print("=" * 50)
         
         try:
-            # 방법 1: 해상도 직접 비교 (가장 확실함)
+            # xrandr로 현재 해상도 확인 (매칭용)
             import subprocess
             
-            print("1. xrandr로 물리적 해상도 확인 중...")
+            print("1. xrandr로 현재 해상도 확인 중...")
             xrandr_result = subprocess.run(['xrandr'], capture_output=True, text=True, timeout=5)
             physical_width = None
             physical_height = None
             
             if xrandr_result.returncode == 0:
-                print("   xrandr 출력:")
-                # 연결된 디스플레이 라인들 출력
                 for line in xrandr_result.stdout.split('\n'):
-                    if ' connected' in line:
-                        print(f"   {line}")
-                        if 'x' in line:
-                            parts = line.split()
-                            for part in parts:
-                                if 'x' in part and '+' in part:
-                                    resolution = part.split('+')[0]
-                                    if 'x' in resolution:
-                                        physical_width = int(resolution.split('x')[0])
-                                        physical_height = int(resolution.split('x')[1])
-                                        print(f"   → 물리적 해상도 발견: {physical_width}x{physical_height}")
-                                        break
-                            if physical_width:
-                                break
-            else:
-                print(f"   xrandr 실행 실패: return code {xrandr_result.returncode}")
+                    if ' connected' in line and 'x' in line:
+                        parts = line.split()
+                        for part in parts:
+                            if 'x' in part and '+' in part:
+                                resolution = part.split('+')[0]
+                                if 'x' in resolution:
+                                    physical_width = int(resolution.split('x')[0])
+                                    physical_height = int(resolution.split('x')[1])
+                                    print(f"   현재 해상도: {physical_width}x{physical_height}")
+                                    break
+                        if physical_width:
+                            break
             
-            # monitors.xml 설정 확인
-            print("\n2. monitors.xml 설정 파일 확인 중...")
-            try:
-                monitors_file = os.path.expanduser("~/.config/monitors.xml")
-                if os.path.exists(monitors_file):
-                    print(f"   monitors.xml 파일 존재: {monitors_file}")
-                    tree = ET.parse(monitors_file)
-                    root = tree.getroot()
+            # monitors.xml에서 스케일 확인
+            print("\n2. monitors.xml에서 스케일 값 찾기...")
+            monitors_file = os.path.expanduser("~/.config/monitors.xml")
+            if os.path.exists(monitors_file):
+                tree = ET.parse(monitors_file)
+                root = tree.getroot()
+                
+                config_count = 0
+                for config in root.findall('configuration'):
+                    config_count += 1
+                    print(f"   Configuration {config_count}:")
                     
-                    print("   발견된 스케일 설정들:")
-                    config_count = 0
+                    for logicalmonitor in config.findall('logicalmonitor'):
+                        # 해상도 확인
+                        config_resolution = None
+                        for monitor in logicalmonitor.findall('monitor'):
+                            mode = monitor.find('mode')
+                            if mode is not None:
+                                width_elem = mode.find('width')
+                                height_elem = mode.find('height')
+                                if width_elem is not None and height_elem is not None:
+                                    config_resolution = f"{width_elem.text}x{height_elem.text}"
+                        
+                        # 스케일 확인
+                        scale_elem = logicalmonitor.find('scale')
+                        primary_elem = logicalmonitor.find('primary')
+                        if scale_elem is not None:
+                            is_primary = primary_elem is not None and primary_elem.text == 'yes'
+                            scale_value = float(scale_elem.text)
+                            
+                            print(f"     스케일: {scale_value}, Primary: {is_primary}, 해상도: {config_resolution}")
+                            
+                            # 현재 해상도와 일치하는 configuration을 찾으면 사용
+                            if config_resolution and physical_width and physical_height:
+                                expected_resolution = f"{physical_width}x{physical_height}"
+                                if config_resolution == expected_resolution:
+                                    actual_scale = scale_value
+                                    print(f"     ✓ 현재 해상도와 일치! 스케일: {actual_scale}")
+                                    break
+                            # 해상도 매칭 실패시 첫 번째 primary 사용
+                            elif is_primary and actual_scale == 1.0:
+                                actual_scale = scale_value
+                                print(f"     ✓ Primary 모니터 스케일 사용: {actual_scale}")
+                    
+                    if actual_scale != 1.0:
+                        break
+                
+                if actual_scale == 1.0:
+                    # 모든 방법 실패시 첫 번째 스케일 사용
                     for config in root.findall('configuration'):
-                        config_count += 1
-                        print(f"   Configuration {config_count}:")
                         for logicalmonitor in config.findall('logicalmonitor'):
                             scale_elem = logicalmonitor.find('scale')
-                            primary_elem = logicalmonitor.find('primary')
                             if scale_elem is not None:
-                                is_primary = primary_elem is not None and primary_elem.text == 'yes'
-                                print(f"     스케일: {scale_elem.text}, Primary: {is_primary}")
-                else:
-                    print("   monitors.xml 파일이 존재하지 않음")
-            except Exception as e:
-                print(f"   monitors.xml 읽기 오류: {e}")
-            
-            # gsettings 확인
-            print("\n3. gsettings 설정 확인 중...")
-            try:
-                # scaling-factor 확인
-                result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'scaling-factor'], 
-                                      capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    print(f"   scaling-factor: {result.stdout.strip()}")
-                else:
-                    print("   scaling-factor 읽기 실패")
-                
-                # text-scaling-factor 확인
-                result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'text-scaling-factor'], 
-                                      capture_output=True, text=True, timeout=5)
-                if result.returncode == 0:
-                    print(f"   text-scaling-factor: {result.stdout.strip()}")
-                else:
-                    print("   text-scaling-factor 읽기 실패")
-            except Exception as e:
-                print(f"   gsettings 읽기 오류: {e}")
-
-            # 논리적 해상도 가져오기 (tkinter)
-            print("\n4. tkinter로 논리적 해상도 확인 중...")
-            if physical_width:
-                temp_root = tk.Tk()
-                logical_width = temp_root.winfo_screenwidth()
-                logical_height = temp_root.winfo_screenheight()
-                temp_root.destroy()
-                
-                print(f"   논리적 해상도: {logical_width}x{logical_height}")
-                
-                # 스케일 계산
-                if logical_width > 0:
-                    raw_scale = physical_width / logical_width
-                    print(f"\n5. 스케일 계산:")
-                    print(f"   물리적 너비: {physical_width}")
-                    print(f"   논리적 너비: {logical_width}")
-                    print(f"   원시 스케일: {raw_scale:.3f}")
-                    
-                    # 일반적인 스케일 값으로 반올림
-                    if raw_scale >= 1.9:
-                        actual_scale = 2.0
-                        print(f"   → 2.0 스케일로 반올림")
-                    elif raw_scale >= 1.4:
-                        actual_scale = 1.5
-                        print(f"   → 1.5 스케일로 반올림")
-                    elif raw_scale >= 1.2:
-                        actual_scale = 1.25
-                        print(f"   → 1.25 스케일로 반올림")
-                    else:
-                        actual_scale = 1.0
-                        print(f"   → 1.0 스케일로 설정")
-                else:
-                    print("   논리적 너비가 0 또는 음수")
+                                actual_scale = float(scale_elem.text)
+                                print(f"   → 첫 번째 스케일 사용: {actual_scale}")
+                                break
+                        if actual_scale != 1.0:
+                            break
             else:
-                print("   물리적 해상도를 찾을 수 없음")
+                print("   monitors.xml 파일이 존재하지 않음")
                         
         except Exception as e:
-            print(f"   스케일 감지 중 오류 발생: {e}")
+            print(f"   오류 발생: {e}")
         
-        print(f"\n6. 최종 결과:")
-        print(f"   감지된 스케일: {actual_scale}")
+        print(f"\n3. 최종 결과:")
+        print(f"   선택된 스케일: {actual_scale}")
         print("=" * 50)
         
         return actual_scale
