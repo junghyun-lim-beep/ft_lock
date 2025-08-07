@@ -256,6 +256,13 @@ class FTLock:
         self.root.title("FT Lock")
         self.root.configure(bg='black')
         
+        # HiDPI 대응 추가
+        try:
+            # DPI 인식 비활성화 (Windows/Linux)
+            self.root.tk.call('tk', 'scaling', 1.0)
+        except:
+            pass
+            
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
         self.root.attributes('-topmost', True)
