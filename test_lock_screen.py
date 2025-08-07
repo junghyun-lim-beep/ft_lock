@@ -250,18 +250,12 @@ class TestFTLock:
         self.root.title("FT Lock - Test Mode")
         self.root.configure(bg='black')
         
-        # HiDPI 대응 추가
+        # HiDPI 대응: tkinter 자동 스케일링 완전 비활성화
         try:
-            # 시스템 스케일링 팩터 감지
-            scale_factor = self.root.tk.call('tk', 'scaling')
-            if scale_factor > 1.0:
-                # 스케일링이 적용된 경우, UI 요소 크기를 늘려서 보정
-                self.ui_scale = scale_factor  # 역방향 계산 수정!
-                print(f"HiDPI detected: scale={scale_factor}, UI adjustment={self.ui_scale}")
-            else:
-                self.ui_scale = 1.0
+            self.root.tk.call('tk', 'scaling', 1.0)
+            print("HiDPI: tkinter scaling disabled for consistent UI")
         except:
-            self.ui_scale = 1.0
+            pass
             
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
@@ -304,15 +298,12 @@ class TestFTLock:
             print(f"Warning: Could not load background image: {e}")
             self.root.configure(bg='#1a1a2e')
         
-        # Create center container for passcode input (가운데로 이동, HiDPI 대응)
-        container_width = int(400 * self.ui_scale)
-        container_height = int(350 * self.ui_scale)
+        # Create center container for passcode input (가운데로 이동)
         input_container = tk.Frame(self.root, bg='black', relief='flat')
-        input_container.place(relx=0.5, rely=0.5, anchor='center', width=container_width, height=container_height)
+        input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
         
-        # Lock icon in input container (HiDPI 대응)
-        icon_size = int(48 * self.ui_scale)
-        lock_label = tk.Label(input_container, text="🔒", font=("Arial", icon_size), 
+        # Lock icon in input container
+        lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
                              bg='black', fg='white')
         lock_label.pack(pady=(20, 10))
         
