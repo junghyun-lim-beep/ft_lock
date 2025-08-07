@@ -38,101 +38,55 @@ class TestFTLock:
         self.lockout_start_time = None  # 잠금 시작 시간
         
     def get_display_scale(self):
-        """monitors.xml에서 현재 사용 중인 스케일 찾기 (모니터 이름 매칭)"""
+        """monitors.xml에서 현재 사용 중인 정확한 스케일 찾기"""
         actual_scale = 1.0
         
         print("=" * 50)
-        print("monitors.xml에서 스케일 감지 시작...")
+        print("스케일 감지 중...")
         print("=" * 50)
         
         try:
-            # 현재 연결된 모니터 이름 확인
-            import subprocess
-            current_monitor = None
-            
-            print("1. 현재 연결된 모니터 확인...")
-            xrandr_result = subprocess.run(['xrandr'], capture_output=True, text=True, timeout=5)
-            if xrandr_result.returncode == 0:
-                for line in xrandr_result.stdout.split('\n'):
-                    if ' connected primary' in line:
-                        current_monitor = line.split()[0]
-                        print(f"   현재 Primary 모니터: {current_monitor}")
-                        break
-            
-            # monitors.xml 확인
             monitors_file = os.path.expanduser("~/.config/monitors.xml")
             if os.path.exists(monitors_file):
-                print(f"\n2. monitors.xml 파일 분석...")
                 tree = ET.parse(monitors_file)
                 root = tree.getroot()
                 
-                # 모든 configuration 확인하고 가장 최근 것 사용 (첫 번째)
-                first_config = root.find('configuration')
-                if first_config is not None:
-                    print("첫 번째 Configuration의 모든 모니터:")
+                print("monitors.xml 분석:")
+                
+                # 모든 configuration을 확인하되, 첫 번째가 현재 활성
+                configs = root.findall('configuration')
+                print(f"총 {len(configs)}개 configuration 발견")
+                
+                if configs:
+                    # 첫 번째 configuration 사용
+                    active_config = configs[0]
+                    print("첫 번째 configuration 사용:")
                     
-                    primary_scales = []
-                    all_scales = []
+                    logicalmonitors = active_config.findall('logicalmonitor')
+                    print(f"  {len(logicalmonitors)}개 logicalmonitor 발견")
                     
-                    for logicalmonitor in first_config.findall('logicalmonitor'):
-                        scale_elem = logicalmonitor.find('scale')
-                        primary_elem = logicalmonitor.find('primary')
+                    for i, lm in enumerate(logicalmonitors):
+                        scale_elem = lm.find('scale')
+                        primary_elem = lm.find('primary')
                         
                         if scale_elem is not None:
+                            scale_val = float(scale_elem.text)
                             is_primary = primary_elem is not None and primary_elem.text == 'yes'
-                            scale_value = float(scale_elem.text)
                             
-                            # 모니터 이름 찾기
-                            monitor_name = "알 수 없음"
-                            for monitor in logicalmonitor.findall('monitor'):
-                                monitorspec = monitor.find('monitorspec')
-                                if monitorspec is not None:
-                                    connector = monitorspec.find('connector')
-                                    if connector is not None:
-                                        monitor_name = connector.text
-                                        break
+                            print(f"  Monitor {i+1}: scale={scale_val}, primary={is_primary}")
                             
-                            # 해상도 정보
-                            config_resolution = "알 수 없음"
-                            for monitor in logicalmonitor.findall('monitor'):
-                                mode = monitor.find('mode')
-                                if mode is not None:
-                                    width_elem = mode.find('width')
-                                    height_elem = mode.find('height')
-                                    if width_elem is not None and height_elem is not None:
-                                        config_resolution = f"{width_elem.text}x{height_elem.text}"
-                                        break
-                            
-                            print(f"  모니터: {monitor_name}, 스케일: {scale_value}, Primary: {is_primary}, 해상도: {config_resolution}")
-                            
-                            all_scales.append(scale_value)
-                            if is_primary:
-                                primary_scales.append(scale_value)
-                                
-                                # 현재 모니터와 이름이 일치하면 우선 선택
-                                if current_monitor and monitor_name == current_monitor:
-                                    actual_scale = scale_value
-                                    print(f"  ✓ 현재 모니터와 일치! 스케일: {actual_scale}")
-                    
-                    # 모니터 이름 매칭 실패시 다른 방법들 시도
-                    if actual_scale == 1.0:
-                        if primary_scales:
-                            # 가장 높은 primary 스케일 사용 (보통 메인 모니터가 높은 스케일)
-                            actual_scale = max(primary_scales)
-                            print(f"  → 가장 높은 Primary 스케일 선택: {actual_scale}")
-                        elif all_scales:
-                            # 가장 높은 스케일 사용
-                            actual_scale = max(all_scales)
-                            print(f"  → 가장 높은 스케일 선택: {actual_scale}")
-                else:
-                    print("Configuration을 찾을 수 없음")
+                            # 첫 번째 스케일 값을 사용 (가장 간단)
+                            if actual_scale == 1.0:
+                                actual_scale = scale_val
+                                print(f"  → 첫 번째 스케일 선택: {actual_scale}")
+                
             else:
-                print("monitors.xml 파일이 존재하지 않음")
+                print("monitors.xml 없음")
                         
         except Exception as e:
-            print(f"오류 발생: {e}")
+            print(f"오류: {e}")
         
-        print(f"\n최종 결과: {actual_scale}")
+        print(f"최종 스케일: {actual_scale}")
         print("=" * 50)
         
         return actual_scale
