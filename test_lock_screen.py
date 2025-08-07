@@ -445,6 +445,60 @@ class TestFTLock:
             except:
                 print("gsettings scaling-factor check failed")
             
+            # Fractional Scaling 확인 (우분투 20.04+)
+            try:
+                # mutter의 experimental features 확인
+                result = subprocess.run(['gsettings', 'get', 'org.gnome.mutter', 'experimental-features'], 
+                                      capture_output=True, text=True, timeout=2)
+                if result.returncode == 0 and 'scale-monitor-framebuffer' in result.stdout:
+                    print("Fractional scaling detected")
+                    
+                    # monitors.xml 파일에서 실제 스케일 확인
+                    import xml.etree.ElementTree as ET
+                    monitors_path = os.path.expanduser("~/.config/monitors.xml")
+                    if os.path.exists(monitors_path):
+                        try:
+                            tree = ET.parse(monitors_path)
+                            root = tree.getroot()
+                            for monitor in root.findall('.//monitor'):
+                                scale_elem = monitor.find('.//scale')
+                                if scale_elem is not None:
+                                    fractional_scale = float(scale_elem.text)
+                                    if fractional_scale > system_scale:
+                                        system_scale = fractional_scale
+                                        print(f"Fractional scale from monitors.xml: {fractional_scale}")
+                        except:
+                            print("Failed to parse monitors.xml")
+                    
+                    # xrandr로도 확인 시도
+                    try:
+                        result = subprocess.run(['xrandr', '--listmonitors'], 
+                                              capture_output=True, text=True, timeout=2)
+                        if result.returncode == 0:
+                            # xrandr 출력에서 스케일링 정보 찾기
+                            lines = result.stdout.split('\n')
+                            for line in lines:
+                                if 'x' in line and '/' in line:
+                                    # 예: 3840/1920x2160/1080 형태에서 스케일 계산
+                                    parts = line.split()
+                                    for part in parts:
+                                        if '/' in part and 'x' in part:
+                                            try:
+                                                # 3840/1920x2160/1080 -> 3840/1920 = 2.0
+                                                width_part = part.split('x')[0]
+                                                if '/' in width_part:
+                                                    actual, logical = width_part.split('/')
+                                                    xrandr_scale = float(actual) / float(logical)
+                                                    if xrandr_scale > 1.5:
+                                                        system_scale = max(system_scale, xrandr_scale)
+                                                        print(f"Xrandr detected scale: {xrandr_scale}")
+                                            except:
+                                                pass
+                    except:
+                        print("xrandr check failed")
+            except:
+                print("Fractional scaling check failed")
+            
             # text-scaling-factor도 확인
             try:
                 result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'text-scaling-factor'], 
@@ -477,9 +531,67 @@ class TestFTLock:
         print(f"Final scale decision: {current_scale}")
         print("=== SCALING DETECTION END ===")
         
-        # 우분투에서 1.25 이상이거나 시스템이 2.0이면 고해상도
-        is_high_dpi = current_scale >= 1.25 or system_scale >= 2.0
-        print(f"High DPI mode: {is_high_dpi} (scale={current_scale}, system={system_scale})")
+        # 방법 5: 화면 해상도 기반 스케일링 추정 (더 정확한 방법)
+        resolution_scale = 1.0
+        try:
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            
+            # 일반적인 해상도별 스케일링 추정
+            if screen_width >= 3840 or screen_height >= 2160:  # 4K
+                resolution_scale = 2.0
+                print(f"4K resolution detected ({screen_width}x{screen_height}) - likely 200% scaling")
+            elif screen_width >= 2560 or screen_height >= 1440:  # QHD
+                resolution_scale = 1.5
+                print(f"QHD resolution detected ({screen_width}x{screen_height}) - likely 150% scaling")
+            elif screen_width >= 1920 and screen_height >= 1080:  # FHD
+                # FHD에서도 200% 스케일링 가능 (작은 화면)
+                if screen_width_mm > 0 and screen_height_mm > 0:
+                    diagonal_inch = ((screen_width_mm**2 + screen_height_mm**2)**0.5) / 25.4
+                    if diagonal_inch < 15:  # 15인치 미만이면 고해상도
+                        resolution_scale = 2.0
+                        print(f"Small high-res screen detected ({diagonal_inch:.1f}\" {screen_width}x{screen_height}) - likely 200% scaling")
+                    else:
+                        resolution_scale = 1.0
+                        print(f"Standard FHD screen ({diagonal_inch:.1f}\" {screen_width}x{screen_height}) - likely 100% scaling")
+                else:
+                    resolution_scale = 1.0
+                    print(f"FHD resolution ({screen_width}x{screen_height}) - assuming 100% scaling")
+            
+            print(f"Resolution-based scale: {resolution_scale}")
+        except:
+            print("Resolution-based scaling detection failed")
+        
+        # 최종 스케일 결정 (해상도 기반 추정 포함)
+        all_scales = [tk_scale, dpi_scale, env_scale, system_scale, resolution_scale]
+        
+        # 시스템 스케일이나 해상도 기반이 2.0이면 우선
+        if system_scale >= 2.0 or resolution_scale >= 2.0:
+            current_scale = max(system_scale, resolution_scale)
+            print(f"Using high-confidence scale: {current_scale}")
+        else:
+            current_scale = max(all_scales)
+            print(f"Using max detected scale: {current_scale}")
+        
+        # 고해상도 판단 (1.33333 제외하고 판단)
+        is_high_dpi = (current_scale >= 1.5 or 
+                      system_scale >= 2.0 or 
+                      resolution_scale >= 1.5)
+        
+        print(f"High DPI mode: {is_high_dpi} (final_scale={current_scale})")
+        print(f"All scales: tk={tk_scale}, dpi={dpi_scale:.2f}, env={env_scale}, system={system_scale}, resolution={resolution_scale}")
+        
+        # 방법 6: 사용자 확인 (환경변수로 강제 설정 가능)
+        if 'FT_LOCK_SCALE' in os.environ:
+            try:
+                user_scale = float(os.environ['FT_LOCK_SCALE'])
+                current_scale = user_scale
+                is_high_dpi = user_scale >= 1.5
+                print(f"🎯 User override: FT_LOCK_SCALE={user_scale} (set 'export FT_LOCK_SCALE=2.0' for 200%)")
+            except:
+                print("Invalid FT_LOCK_SCALE value")
+        
+        print(f"💡 Tip: If scaling detection is wrong, run: export FT_LOCK_SCALE=2.0")
         
         entry_frame = tk.Frame(input_container, bg='black')
         entry_frame.pack(pady=(0, 15))
