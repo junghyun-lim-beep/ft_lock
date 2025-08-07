@@ -250,93 +250,51 @@ class TestFTLock:
         self.root.title("FT Lock - Test Mode")
         self.root.configure(bg='black')
         
-        # 스케일링 완전 무시 - 더 강력한 방법
+        # 스케일 조회 및 강제 적용 테스트
         try:
-            # 1. tkinter 내부 스케일링 비활성화
+            print("=== SCALE DETECTION TEST ===")
+            
+            # 1. 현재 tkinter 스케일링 값 조회
+            current_scale = self.root.tk.call('tk', 'scaling')
+            print(f"Current tkinter scaling: {current_scale}")
+            
+            # 2. 화면 정보 조회
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            screen_width_mm = self.root.winfo_screenmmwidth()
+            screen_height_mm = self.root.winfo_screenmmheight()
+            print(f"Screen: {screen_width}x{screen_height}px, {screen_width_mm}x{screen_height_mm}mm")
+            
+            # 3. DPI 계산
+            dpi_x = screen_width / (screen_width_mm / 25.4)
+            dpi_y = screen_height / (screen_height_mm / 25.4)
+            print(f"Calculated DPI: {dpi_x:.1f}x{dpi_y:.1f}")
+            
+            # 4. tkinter DPI 조회
+            tk_dpi = self.root.winfo_fpixels('1i')
+            print(f"Tkinter DPI: {tk_dpi:.1f}")
+            
+            print("=== SCALE FORCE TEST ===")
+            
+            # 5. 강제로 다양한 스케일 값 적용해보기
+            test_scales = [0.5, 1.0, 1.5, 2.0]
+            for scale in test_scales:
+                try:
+                    self.root.tk.call('tk', 'scaling', scale)
+                    new_scale = self.root.tk.call('tk', 'scaling')
+                    print(f"Set scale {scale} -> Got scale {new_scale}")
+                except Exception as e:
+                    print(f"Failed to set scale {scale}: {e}")
+            
+            # 6. 최종적으로 1.0으로 설정
             self.root.tk.call('tk', 'scaling', 1.0)
+            final_scale = self.root.tk.call('tk', 'scaling')
+            print(f"Final scaling set to: {final_scale}")
             
-            # 2. 다양한 방법으로 스케일링 감지 시도
-            import subprocess
-            import os
+            print("=== SCALE TEST COMPLETE ===")
             
-            # 방법 1: gsettings로 스케일링 확인
-            try:
-                result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'scaling-factor'], 
-                                      capture_output=True, text=True)
-                if result.returncode == 0:
-                    scale_factor = result.stdout.strip()
-                    print(f"GNOME scaling factor: {scale_factor}")
-            except:
-                pass
-            
-            # 방법 2: 환경변수 확인
-            gdk_scale = os.environ.get('GDK_SCALE', '1')
-            gdk_dpi_scale = os.environ.get('GDK_DPI_SCALE', '1')
-            print(f"GDK_SCALE: {gdk_scale}, GDK_DPI_SCALE: {gdk_dpi_scale}")
-            
-            # 방법 3: tkinter DPI 정보
-            try:
-                dpi = self.root.winfo_fpixels('1i')  # 1인치당 픽셀 수
-                print(f"Detected DPI: {dpi:.1f}")
-                if dpi > 120:  # 일반적으로 96 DPI가 100%
-                    print(f"High DPI detected (>{120})")
-            except:
-                pass
-                
-            # 방법 4: 화면 물리적 크기와 해상도로 DPI 계산
-            try:
-                screen_width_px = self.root.winfo_screenwidth()
-                screen_height_px = self.root.winfo_screenheight()
-                screen_width_mm = self.root.winfo_screenmmwidth()
-                screen_height_mm = self.root.winfo_screenmmheight()
-                
-                # DPI 계산 (25.4mm = 1inch)
-                dpi_x = screen_width_px / (screen_width_mm / 25.4)
-                dpi_y = screen_height_px / (screen_height_mm / 25.4)
-                
-                print(f"Screen: {screen_width_px}x{screen_height_px}px, {screen_width_mm}x{screen_height_mm}mm")
-                print(f"Calculated DPI: {dpi_x:.1f}x{dpi_y:.1f}")
-                
-                # 아이맥 4K 해상도 감지 - 코드에서 직접 디스플레이 보정
-                if screen_width_px >= 3840:
-                    print("iMac 4K detected - applying code-level display corrections")
-                    
-                    # 방법 1: tkinter에게 가상 해상도 알려주기
-                    try:
-                        # 아이맥은 보통 물리적 해상도의 절반으로 동작해야 함
-                        virtual_width = screen_width_px // 2  # 1920
-                        virtual_height = screen_height_px // 2  # 1080
-                        
-                        # tkinter 내부 해상도 재정의
-                        self.root.tk.call('tk', 'scaling', 0.5)  # 50% 스케일링으로 강제
-                        
-                        print(f"Virtual resolution applied: {virtual_width}x{virtual_height}")
-                        print("Scaling set to 0.5 for iMac compatibility")
-                        
-                    except Exception as e:
-                        print(f"iMac correction failed: {e}")
-                        # 실패 시 기본 스케일링 비활성화
-                        self.root.tk.call('tk', 'scaling', 1.0)
-                    
-                    # 방법 2: X11 레벨에서 DPI 보정 (백그라운드)
-                    try:
-                        import subprocess
-                        subprocess.Popen(['xrandr', '--dpi', '96'], 
-                                       stdout=subprocess.DEVNULL, 
-                                       stderr=subprocess.DEVNULL)
-                        print("Background DPI correction applied")
-                    except:
-                        pass
-                else:
-                    # 일반 디스플레이는 스케일링 비활성화
-                    self.root.tk.call('tk', 'scaling', 1.0)
-                
-            except Exception as e:
-                print(f"DPI calculation failed: {e}")
-                
-            print("Scale override attempted")
         except Exception as e:
-            print(f"Scale setting failed: {e}")
+            print(f"Scale test failed: {e}")
         
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
