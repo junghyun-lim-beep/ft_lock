@@ -368,9 +368,15 @@ class TestFTLock:
             self.root.configure(bg='#1a1a2e')
         
         # Create center container for passcode input (가운데로 이동)
-        # 스케일에 따라 컨테이너 크기 조정
-        container_width = int(400 / display_scale) if display_scale > 1.0 else 400
-        container_height = int(350 / display_scale) if display_scale > 1.0 else 350
+        # 스케일에 따라 컨테이너 크기 조정 (더 큰 크기로)
+        if display_scale > 1.0:
+            container_width = int(600 * display_scale)  # 더 넉넉하게
+            container_height = int(500 * display_scale)
+        else:
+            container_width = 600
+            container_height = 500
+        
+        print(f"Container size: {container_width}x{container_height}")
         
         input_container = tk.Frame(self.root, bg='black', relief='flat')
         input_container.place(relx=0.5, rely=0.5, anchor='center', width=container_width, height=container_height)
