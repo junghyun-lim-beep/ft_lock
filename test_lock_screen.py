@@ -286,10 +286,28 @@ class TestFTLock:
                 except Exception as e:
                     print(f"Failed to set scale {scale}: {e}")
             
-            # 6. 최종적으로 1.0으로 설정
-            self.root.tk.call('tk', 'scaling', 1.0)
-            final_scale = self.root.tk.call('tk', 'scaling')
-            print(f"Final scaling set to: {final_scale}")
+            # 6. 1.33 스케일링 문제 해결 - 강제로 1.0 고정
+            if current_scale > 1.2:  # 1.33이나 다른 이상한 값들
+                print(f"Problematic scaling detected: {current_scale}")
+                print("Forcing scaling to 1.0 to fix UI rendering...")
+                
+                # 여러 번 시도해서 확실히 1.0으로 설정
+                for attempt in range(3):
+                    self.root.tk.call('tk', 'scaling', 1.0)
+                    new_scale = self.root.tk.call('tk', 'scaling')
+                    print(f"Attempt {attempt+1}: Set 1.0 -> Got {new_scale}")
+                    if abs(new_scale - 1.0) < 0.01:  # 거의 1.0이면 성공
+                        break
+                
+                final_scale = self.root.tk.call('tk', 'scaling')
+                print(f"Final scaling locked to: {final_scale}")
+                
+                if abs(final_scale - 1.0) < 0.01:
+                    print("✅ Scaling fix successful - UI should render properly now")
+                else:
+                    print("❌ Scaling fix failed - UI may still have issues")
+            else:
+                print("Normal scaling detected - no fix needed")
             
             print("=== SCALE TEST COMPLETE ===")
             
