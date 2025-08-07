@@ -265,11 +265,16 @@ class TestFTLock:
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         
+        # Debug: 화면 정보 출력
+        print(f"Screen resolution: {screen_width}x{screen_height}")
+        print(f"Screen size (mm): {self.root.winfo_screenmmwidth()}x{self.root.winfo_screenmmheight()}")
+        
         # Now remove window decorations
         self.root.overrideredirect(True)
         
         # Force window to cover entire screen
         self.root.geometry(f"{screen_width}x{screen_height}+0+0")
+        print(f"Window geometry set to: {screen_width}x{screen_height}+0+0")
         
         # Block all key combinations globally
         self.root.bind('<Key>', self.block_all_keys)
@@ -299,8 +304,20 @@ class TestFTLock:
             self.root.configure(bg='#1a1a2e')
         
         # Create center container for passcode input (가운데로 이동)
-        input_container = tk.Frame(self.root, bg='black', relief='flat')
+        input_container = tk.Frame(self.root, bg='red', relief='flat')  # 빨간색으로 변경해서 보이는지 확인
         input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
+        print(f"Input container placed at center with size 400x350")
+        
+        # 컨테이너가 실제로 배치되었는지 확인
+        self.root.update_idletasks()
+        try:
+            container_x = input_container.winfo_x()
+            container_y = input_container.winfo_y()
+            container_w = input_container.winfo_width()
+            container_h = input_container.winfo_height()
+            print(f"Container actual position: {container_x},{container_y} size: {container_w}x{container_h}")
+        except:
+            print("Could not get container position info")
         
         # Lock icon in input container
         lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
