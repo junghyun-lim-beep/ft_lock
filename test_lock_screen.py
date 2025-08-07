@@ -35,7 +35,6 @@ class TestFTLock:
         self.locked = False
         self.lockout_active = False  # 5분 잠금 상태 추가
         self.lockout_start_time = None  # 잠금 시작 시간
-        self.password_text = ""  # 패스워드 텍스트 저장용
         
     def authenticate_user(self, username, password):
         """Authenticate user using PAM (if available)"""
@@ -92,18 +91,10 @@ class TestFTLock:
         # Block everything else
         return "break"
         
-    def update_password_display(self):
-        """Update password display with dots on canvas"""
-        if hasattr(self, 'password_canvas') and hasattr(self, 'canvas_text_id'):
-            dots = '•' * len(self.password_text)
-            display_text = f"[{dots}]" if dots else "[패스워드 입력창]"
-            self.password_canvas.itemconfig(self.canvas_text_id, text=display_text)
-    
     def on_unlock_attempt(self, event=None):
         """Handle unlock attempt (test version with PAM support)"""
-        password = self.password_text
-        self.password_text = ""
-        self.update_password_display()
+        password = self.password_entry.get()
+        self.password_entry.delete(0, tk.END)
         
         if not password:
             self.status_label.config(text="Please enter password", foreground="orange")
@@ -259,18 +250,11 @@ class TestFTLock:
         self.root.title("FT Lock - Test Mode")
         self.root.configure(bg='black')
         
-        # HiDPI 대응: tkinter 스케일링만 비활성화
-        try:
-            self.root.tk.call('tk', 'scaling', 1.0)
-            print("HiDPI: tkinter scaling disabled")
-        except:
-            pass
-            
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
         self.root.attributes('-topmost', True)
         
-        # Get screen dimensions
+        # Get screen dimensions BEFORE overrideredirect
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         
@@ -307,20 +291,9 @@ class TestFTLock:
             print(f"Warning: Could not load background image: {e}")
             self.root.configure(bg='#1a1a2e')
         
-        # Create center container for passcode input - 절대 좌표 사용
-        center_x = screen_width // 2
-        center_y = screen_height // 2
-        container_width = 400
-        container_height = 350
-        
+        # Create center container for passcode input (가운데로 이동)
         input_container = tk.Frame(self.root, bg='black', relief='flat')
-        input_container.place(x=center_x - container_width//2, 
-                             y=center_y - container_height//2, 
-                             width=container_width, 
-                             height=container_height)
-        
-        print(f"Container placed at absolute position: {center_x - container_width//2},{center_y - container_height//2}")
-
+        input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
         
         # Lock icon in input container
         lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
@@ -343,42 +316,19 @@ class TestFTLock:
                                font=("Arial", 14), bg='black', fg='white')
         prompt_label.pack(pady=(0, 8))
         
-        # Canvas로 패스워드 입력창 직접 그리기 (HiDPI 문제 완전 우회)
-        canvas_width = 350
-        canvas_height = 50
-        self.password_canvas = tk.Canvas(input_container, 
-                                       width=canvas_width, 
-                                       height=canvas_height, 
-                                       bg='#2a2a3e', 
-                                       highlightthickness=0)
-        self.password_canvas.pack(pady=20)
+        # Password entry with modern styling
+        entry_frame = tk.Frame(input_container, bg='black')
+        entry_frame.pack(pady=(0, 15))
         
-        # 캔버스에 텍스트 그리기
-        self.canvas_text_id = self.password_canvas.create_text(
-            canvas_width//2, canvas_height//2, 
-            text="[패스워드 입력창]", 
-            font=("Arial", 16), 
-            fill="white"
-        )
+        self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 14),
+                                      width=25, bg='#2a2a3e', fg='white',
+                                      relief='flat', bd=0, insertbackground='white')
+        self.password_entry.pack(ipady=8, ipadx=10)
+        self.password_entry.focus_set()
+        self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
-        print("Canvas password input created")
-        
-        # 실제 패스워드 저장용
-        self.password_text = ""
-        
-        # 패스워드 입력을 위한 키 바인딩
-        def handle_key_input(event):
-            if event.keysym == 'Return':
-                self.on_unlock_attempt()
-            elif event.keysym == 'BackSpace':
-                if self.password_text:
-                    self.password_text = self.password_text[:-1]
-                    self.update_password_display()
-            elif len(event.char) == 1 and event.char.isprintable():
-                self.password_text += event.char
-                self.update_password_display()
-        
-        self.root.bind('<KeyPress>', handle_key_input)
+        # Allow only specific keys in password entry
+        self.password_entry.bind('<Key>', lambda e: None if self.block_all_keys(e) != "break" else "break")
         
         # Unlock button with modern styling
         unlock_btn = tk.Button(input_container, text="Unlock", font=("Arial", 12, "bold"),
