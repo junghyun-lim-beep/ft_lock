@@ -334,12 +334,14 @@ class TestFTLock:
                     # 새 Entry를 root에 직접 생성
                     self.password_entry = tk.Entry(self.root, 
                                                   show='•', 
-                                                  font=("Arial", 24),
+                                                  font=("Arial", 18),
                                                   width=15,
-                                                  bg='red',
-                                                  fg='yellow',
+                                                  bg='#2c3e50',
+                                                  fg='white',
                                                   relief='solid',
-                                                  bd=5,
+                                                  bd=2,
+                                                  highlightthickness=2,
+                                                  highlightcolor='#3498db',
                                                   insertbackground='white')
                     
                     # 화면 중앙에 절대 위치 배치
@@ -374,13 +376,15 @@ class TestFTLock:
                     print("Method 2: Trying Text widget as fallback")
                     try:
                         self.password_entry = tk.Text(self.root, 
-                                                     font=("Arial", 24),
+                                                     font=("Arial", 18),
                                                      height=1,
                                                      width=15,
-                                                     bg='red',
-                                                     fg='yellow',
+                                                     bg='#2c3e50',
+                                                     fg='white',
                                                      relief='solid',
-                                                     bd=5,
+                                                     bd=2,
+                                                     highlightthickness=2,
+                                                     highlightcolor='#3498db',
                                                      insertbackground='white')
                         
                         self.password_entry.place(x=x, y=y, width=300, height=50)
@@ -552,15 +556,17 @@ class TestFTLock:
                                       show='•', 
                                       font=("Arial", 16),        # 폰트 크기 조정
                                       width=20,                  # 너비 증가
-                                      bg='red',                  # 빨간 배경 (테스트용)
-                                      fg='yellow',               # 노란 글자
+                                      bg='#2c3e50',              # 어두운 회색 배경
+                                      fg='white',                # 흰색 글자
                                       relief='solid',            # 실선 테두리
-                                      bd=3,                      # 테두리 두께
+                                      bd=2,                      # 테두리 두께
+                                      highlightthickness=2,      # 포커스 테두리
+                                      highlightcolor='#3498db',  # 파란색 포커스
                                       insertbackground='white')  # 흰색 커서
         
         # pack 대신 place 사용으로 절대 위치 지정
-        self.password_entry.place(relx=0.5, rely=0.6, anchor='center', 
-                                 width=280, height=40)
+        self.password_entry.place(relx=0.5, rely=0.65, anchor='center', 
+                                 width=300, height=45)
         
         # 강제로 업데이트 및 매핑 시도
         print("Forcing widget updates and mapping...")
@@ -594,12 +600,13 @@ class TestFTLock:
         except Exception as e:
             print(f"Container raise failed: {e}")
         
-        print("Entry widget configured with HIGH VISIBILITY settings:")
-        print(f"- Font: Arial 20")
-        print(f"- Background: red")
-        print(f"- Foreground: yellow") 
-        print(f"- Border: solid 5px")
-        print(f"- Size: width=15, padding=15x20")
+        print("Entry widget configured with MODERN STYLING:")
+        print(f"- Font: Arial 16")
+        print(f"- Background: #2c3e50 (dark gray)")
+        print(f"- Foreground: white") 
+        print(f"- Border: solid 2px")
+        print(f"- Highlight: #3498db (blue)")
+        print(f"- Size: width=20, place width=280x40")
         
         # Entry 위젯 정보 여러 번 체크 및 대안 방법 시도
         self.root.after(50, self._print_entry_info)    # 50ms 후
