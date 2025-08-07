@@ -250,6 +250,14 @@ class TestFTLock:
         self.root.title("FT Lock - Test Mode")
         self.root.configure(bg='black')
         
+        # 스케일링 완전 무시 - 모든 스케일 환경에서 동일한 UI
+        try:
+            # tkinter 내부 스케일링 비활성화
+            self.root.tk.call('tk', 'scaling', 1.0)
+            print("Scale ignored: UI will be consistent across all scale settings")
+        except Exception as e:
+            print(f"Scale setting failed: {e}")
+        
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
         self.root.attributes('-topmost', True)
