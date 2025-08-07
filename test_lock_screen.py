@@ -331,10 +331,21 @@ class TestFTLock:
                     # 기존 Entry 제거
                     entry.destroy()
                     
+                    # 스케일링에 따른 크기 조정
+                    current_scale = self.root.tk.call('tk', 'scaling')
+                    if current_scale > 1.5:  # 200% 스케일
+                        alt_font_size = 14
+                        alt_width = 250
+                        alt_height = 40
+                    else:  # 100% 스케일
+                        alt_font_size = 18
+                        alt_width = 300
+                        alt_height = 50
+                    
                     # 새 Entry를 root에 직접 생성
                     self.password_entry = tk.Entry(self.root, 
                                                   show='•', 
-                                                  font=("Arial", 18),
+                                                  font=("Arial", alt_font_size),
                                                   width=15,
                                                   bg='#2c3e50',
                                                   fg='white',
@@ -344,13 +355,13 @@ class TestFTLock:
                                                   highlightcolor='#3498db',
                                                   insertbackground='white')
                     
-                    # 화면 중앙에 절대 위치 배치
+                    # 화면 중앙에 절대 위치 배치 (스케일링 고려)
                     screen_width = self.root.winfo_screenwidth()
                     screen_height = self.root.winfo_screenheight()
-                    x = screen_width // 2 - 150  # 대략적인 중앙
+                    x = screen_width // 2 - (alt_width // 2)  # 정확한 중앙
                     y = screen_height // 2 + 50   # 중앙보다 약간 아래
                     
-                    self.password_entry.place(x=x, y=y, width=300, height=50)
+                    self.password_entry.place(x=x, y=y, width=alt_width, height=alt_height)
                     
                     # 이벤트 바인딩 재설정
                     self.password_entry.bind('<Return>', self.on_unlock_attempt)
@@ -375,8 +386,19 @@ class TestFTLock:
                     # 방법 2: 간단한 Text 위젯으로 대체
                     print("Method 2: Trying Text widget as fallback")
                     try:
+                        # Text 위젯도 스케일링 고려
+                        current_scale = self.root.tk.call('tk', 'scaling')
+                        if current_scale > 1.5:  # 200% 스케일
+                            text_font_size = 14
+                            text_width = 250
+                            text_height = 40
+                        else:  # 100% 스케일
+                            text_font_size = 18
+                            text_width = 300
+                            text_height = 50
+                        
                         self.password_entry = tk.Text(self.root, 
-                                                     font=("Arial", 18),
+                                                     font=("Arial", text_font_size),
                                                      height=1,
                                                      width=15,
                                                      bg='#2c3e50',
@@ -387,7 +409,13 @@ class TestFTLock:
                                                      highlightcolor='#3498db',
                                                      insertbackground='white')
                         
-                        self.password_entry.place(x=x, y=y, width=300, height=50)
+                        # 화면 중앙 재계산
+                        screen_width = self.root.winfo_screenwidth()
+                        screen_height = self.root.winfo_screenheight()
+                        x = screen_width // 2 - (text_width // 2)
+                        y = screen_height // 2 + 50
+                        
+                        self.password_entry.place(x=x, y=y, width=text_width, height=text_height)
                         self.password_entry.focus_set()
                         
                         print("Text widget fallback created")
@@ -536,26 +564,27 @@ class TestFTLock:
                                font=("Arial", 14), bg='black', fg='white')
         prompt_label.pack(pady=(0, 8))
         
-        # Entry 위젯 매핑 문제 해결 시도 - 스케일링 200% 대응
-        print("Trying different Entry placement methods for high DPI...")
+        # Entry 위젯을 pack으로 정상적으로 배치 (다른 요소들과 순서 맞춤)
+        print("Creating Entry widget with proper layout order...")
         
-        # 스케일링 정보 다시 확인
+        # 스케일링 정보 확인
         current_scale = self.root.tk.call('tk', 'scaling')
         print(f"Current scaling when creating Entry: {current_scale}")
         
-        # 방법 1: 절대 위치 지정으로 Entry 생성 (place 사용)
-        print("Method 1: Using place() with absolute positioning")
+        # 스케일링에 따른 폰트 크기 조정
+        if current_scale > 1.5:  # 200% 스케일
+            entry_font_size = 14
+            entry_width = 18
+        else:  # 100% 스케일
+            entry_font_size = 16
+            entry_width = 20
         
-        # 컨테이너 크기 확인
-        input_container.update_idletasks()
-        container_width = input_container.winfo_reqwidth()
-        container_height = input_container.winfo_reqheight()
-        print(f"Container size: {container_width}x{container_height}")
+        print(f"Adjusted font size: {entry_font_size}, width: {entry_width}")
         
         self.password_entry = tk.Entry(input_container, 
                                       show='•', 
-                                      font=("Arial", 16),        # 폰트 크기 조정
-                                      width=20,                  # 너비 증가
+                                      font=("Arial", entry_font_size),
+                                      width=entry_width,
                                       bg='#2c3e50',              # 어두운 회색 배경
                                       fg='white',                # 흰색 글자
                                       relief='solid',            # 실선 테두리
@@ -564,49 +593,22 @@ class TestFTLock:
                                       highlightcolor='#3498db',  # 파란색 포커스
                                       insertbackground='white')  # 흰색 커서
         
-        # pack 대신 place 사용으로 절대 위치 지정
-        self.password_entry.place(relx=0.5, rely=0.65, anchor='center', 
-                                 width=300, height=45)
+        # pack으로 정상적인 순서로 배치 (다른 요소들을 덮지 않도록)
+        self.password_entry.pack(pady=(10, 15))
         
-        # 강제로 업데이트 및 매핑 시도
-        print("Forcing widget updates and mapping...")
+        # 위젯 업데이트 및 정상 배치 확인
+        print("Updating widgets with proper layout...")
         self.root.update_idletasks()
         self.root.update()
-        input_container.update_idletasks()
-        input_container.update()
         
-        # 위젯 강제 매핑 시도
-        try:
-            self.password_entry.tkraise()  # 위젯을 맨 앞으로
-            self.password_entry.lift()     # 다른 방법으로도 앞으로
-            print("Widget raised to front")
-        except Exception as e:
-            print(f"Widget raise failed: {e}")
-            
-        # 위젯 가시성 강제 설정
-        try:
-            # 위젯이 실제로 보이도록 강제 설정
-            self.password_entry.configure(state='normal')
-            print("Widget state set to normal")
-        except Exception as e:
-            print(f"Widget state setting failed: {e}")
-            
-        # 추가 매핑 시도
-        try:
-            # 부모 컨테이너도 강제 업데이트
-            input_container.tkraise()
-            input_container.lift()
-            print("Container raised to front")
-        except Exception as e:
-            print(f"Container raise failed: {e}")
-        
-        print("Entry widget configured with MODERN STYLING:")
-        print(f"- Font: Arial 16")
+        print("Entry widget configured with ADAPTIVE STYLING:")
+        print(f"- Font: Arial {entry_font_size}")
+        print(f"- Width: {entry_width}")
         print(f"- Background: #2c3e50 (dark gray)")
         print(f"- Foreground: white") 
         print(f"- Border: solid 2px")
         print(f"- Highlight: #3498db (blue)")
-        print(f"- Size: width=20, place width=280x40")
+        print(f"- Layout: pack() for proper ordering")
         
         # Entry 위젯 정보 여러 번 체크 및 대안 방법 시도
         self.root.after(50, self._print_entry_info)    # 50ms 후
