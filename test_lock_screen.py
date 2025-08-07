@@ -297,6 +297,19 @@ class TestFTLock:
                 print(f"Screen: {screen_width_px}x{screen_height_px}px, {screen_width_mm}x{screen_height_mm}mm")
                 print(f"Calculated DPI: {dpi_x:.1f}x{dpi_y:.1f}")
                 
+                # 4K 해상도 감지 - 스케일링 완전 무시
+                if screen_width_px >= 3840:
+                    print("4K display detected - forcing scale-independent UI")
+                    
+                    # 모든 스케일링 무시하고 고정 크기 사용
+                    self.root.tk.call('tk', 'scaling', 1.0)  # 강제로 1.0 유지
+                    
+                    # 추가적인 스케일링 방지
+                    self.root.option_add('*TkFScale', 1.0)
+                    self.root.option_add('*TkCScale', 1.0)
+                    
+                    print("Scale-independent mode activated")
+                
             except Exception as e:
                 print(f"DPI calculation failed: {e}")
                 
