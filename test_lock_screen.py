@@ -38,7 +38,7 @@ class TestFTLock:
         self.lockout_start_time = None  # 잠금 시작 시간
         
     def get_display_scale(self):
-        """여러 방법으로 디스플레이 스케일 값 가져오기 (강제로 1.0 반환)"""
+        """여러 방법으로 디스플레이 스케일 값 가져오기"""
         actual_scale = 1.0
         
         # 방법 1: monitors.xml 파일 확인
@@ -95,8 +95,7 @@ class TestFTLock:
                 print(f"⚠ Resolution comparison failed: {e}")
         
         print(f"Final detected scale: {actual_scale}")
-        print(f"🔒 Forcing scale to: 1.0 (instead of {actual_scale})")
-        return 1.0  # 강제로 1.0 반환
+        return actual_scale  # 실제 스케일 반환 (UI 조정용)
         
     def authenticate_user(self, username, password):
         """Authenticate user using PAM (if available)"""
@@ -319,7 +318,7 @@ class TestFTLock:
         except Exception as e:
             print(f"⚠ Could not disable tkinter DPI scaling: {e}")
         
-        # 디스플레이 스케일 가져오기 (강제로 1.0)
+        # 디스플레이 스케일 가져오기
         display_scale = self.get_display_scale()
         
         # Make window fullscreen and topmost
@@ -330,13 +329,9 @@ class TestFTLock:
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         
-        # 스케일 적용된 실제 크기 계산
-        actual_width = int(screen_width * display_scale)
-        actual_height = int(screen_height * display_scale)
-        
         print(f"Screen dimensions: {screen_width}x{screen_height}")
         print(f"Scale factor: {display_scale}")
-        print(f"Scaled dimensions: {actual_width}x{actual_height}")
+        print(f"🔒 tkinter DPI scaling will be disabled to normalize UI elements")
         
         # Now remove window decorations
         self.root.overrideredirect(True)
@@ -373,8 +368,12 @@ class TestFTLock:
             self.root.configure(bg='#1a1a2e')
         
         # Create center container for passcode input (가운데로 이동)
+        # 스케일에 따라 컨테이너 크기 조정
+        container_width = int(400 / display_scale) if display_scale > 1.0 else 400
+        container_height = int(350 / display_scale) if display_scale > 1.0 else 350
+        
         input_container = tk.Frame(self.root, bg='black', relief='flat')
-        input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
+        input_container.place(relx=0.5, rely=0.5, anchor='center', width=container_width, height=container_height)
         
         # Lock icon in input container
         lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
