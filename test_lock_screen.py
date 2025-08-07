@@ -93,8 +93,13 @@ class TestFTLock:
         
     def on_unlock_attempt(self, event=None):
         """Handle unlock attempt (test version with PAM support)"""
-        password = self.password_entry.get()
-        self.password_entry.delete(0, tk.END)
+        # Entry 위젯인지 Text 위젯인지 확인
+        if isinstance(self.password_entry, tk.Text):
+            password = self.password_entry.get("1.0", tk.END).strip()
+            self.password_entry.delete("1.0", tk.END)
+        else:
+            password = self.password_entry.get()
+            self.password_entry.delete(0, tk.END)
         
         if not password:
             self.status_label.config(text="Please enter password", foreground="orange")
@@ -256,9 +261,140 @@ class TestFTLock:
                 print(f"Widget position: {entry.winfo_x()}, {entry.winfo_y()}")
                 print(f"Widget size: {entry.winfo_width()}x{entry.winfo_height()}")
                 print(f"Widget requested size: {entry.winfo_reqwidth()}x{entry.winfo_reqheight()}")
+                print(f"Widget manager: {entry.winfo_manager()}")
+                print(f"Widget class: {entry.winfo_class()}")
+                print(f"Widget parent: {entry.winfo_parent()}")
+                
+                # 부모 컨테이너 정보도 출력
+                parent = entry.master
+                if parent:
+                    print(f"Parent mapped: {parent.winfo_ismapped()}")
+                    print(f"Parent viewable: {parent.winfo_viewable()}")
+                    print(f"Parent size: {parent.winfo_width()}x{parent.winfo_height()}")
+                
+                # 스케일링 정보
+                current_scale = self.root.tk.call('tk', 'scaling')
+                print(f"Current tkinter scaling: {current_scale}")
+                
                 print("=== END ENTRY STATUS ===")
+                
+                # 매핑되지 않은 경우 강제 매핑 시도
+                if not entry.winfo_ismapped():
+                    print("*** WIDGET NOT MAPPED - ATTEMPTING FORCED MAPPING ***")
+                    try:
+                        # 다양한 매핑 시도
+                        entry.update()
+                        entry.update_idletasks()
+                        entry.tkraise()
+                        entry.lift()
+                        
+                        # place 매니저 정보 확인 및 재설정
+                        place_info = entry.place_info()
+                        print(f"Place info: {place_info}")
+                        
+                        if place_info:
+                            # place 설정 재적용
+                            entry.place_forget()
+                            entry.place(relx=0.5, rely=0.6, anchor='center', 
+                                       width=280, height=40)
+                            print("Place settings reapplied")
+                            
+                        # 최종 상태 확인
+                        self.root.after(100, lambda: print(f"After forced mapping - mapped: {entry.winfo_ismapped()}, viewable: {entry.winfo_viewable()}"))
+                        
+                    except Exception as map_e:
+                        print(f"Forced mapping failed: {map_e}")
+                        
         except Exception as e:
             print(f"Entry info failed: {e}")
+            
+    def _try_alternative_entry_placement(self):
+        """Entry가 보이지 않을 때 대안 배치 방법 시도"""
+        if not hasattr(self, 'password_entry') or not self.password_entry:
+            return
+            
+        try:
+            entry = self.password_entry
+            print("=== TRYING ALTERNATIVE ENTRY PLACEMENT ===")
+            
+            # 현재 상태 확인
+            is_mapped = entry.winfo_ismapped()
+            is_viewable = entry.winfo_viewable()
+            print(f"Current state - mapped: {is_mapped}, viewable: {is_viewable}")
+            
+            if not is_mapped or not is_viewable:
+                print("Entry not visible - trying alternative methods...")
+                
+                # 방법 1: 새로운 Entry를 root에 직접 생성
+                print("Method 1: Creating new Entry directly on root")
+                try:
+                    # 기존 Entry 제거
+                    entry.destroy()
+                    
+                    # 새 Entry를 root에 직접 생성
+                    self.password_entry = tk.Entry(self.root, 
+                                                  show='•', 
+                                                  font=("Arial", 24),
+                                                  width=15,
+                                                  bg='red',
+                                                  fg='yellow',
+                                                  relief='solid',
+                                                  bd=5,
+                                                  insertbackground='white')
+                    
+                    # 화면 중앙에 절대 위치 배치
+                    screen_width = self.root.winfo_screenwidth()
+                    screen_height = self.root.winfo_screenheight()
+                    x = screen_width // 2 - 150  # 대략적인 중앙
+                    y = screen_height // 2 + 50   # 중앙보다 약간 아래
+                    
+                    self.password_entry.place(x=x, y=y, width=300, height=50)
+                    
+                    # 이벤트 바인딩 재설정
+                    self.password_entry.bind('<Return>', self.on_unlock_attempt)
+                    self.password_entry.bind('<Key>', lambda e: None if self.block_all_keys(e) != "break" else "break")
+                    
+                    # 강제 업데이트
+                    self.root.update_idletasks()
+                    self.root.update()
+                    
+                    # 포커스 설정
+                    self.password_entry.focus_set()
+                    self.password_entry.tkraise()
+                    
+                    print(f"New Entry created on root at position ({x}, {y})")
+                    
+                    # 상태 재확인
+                    self.root.after(200, lambda: print(f"Alternative method result - mapped: {self.password_entry.winfo_ismapped()}, viewable: {self.password_entry.winfo_viewable()}"))
+                    
+                except Exception as alt_e:
+                    print(f"Alternative method 1 failed: {alt_e}")
+                    
+                    # 방법 2: 간단한 Text 위젯으로 대체
+                    print("Method 2: Trying Text widget as fallback")
+                    try:
+                        self.password_entry = tk.Text(self.root, 
+                                                     font=("Arial", 24),
+                                                     height=1,
+                                                     width=15,
+                                                     bg='red',
+                                                     fg='yellow',
+                                                     relief='solid',
+                                                     bd=5,
+                                                     insertbackground='white')
+                        
+                        self.password_entry.place(x=x, y=y, width=300, height=50)
+                        self.password_entry.focus_set()
+                        
+                        print("Text widget fallback created")
+                        
+                    except Exception as text_e:
+                        print(f"Text widget fallback failed: {text_e}")
+            else:
+                print("Entry is visible - no alternative needed")
+                
+        except Exception as e:
+            print(f"Alternative placement failed: {e}")
             
     def create_lock_screen(self):
         """Create the lock screen GUI with full screen background"""
@@ -396,33 +532,67 @@ class TestFTLock:
                                font=("Arial", 14), bg='black', fg='white')
         prompt_label.pack(pady=(0, 8))
         
-        # Entry 위젯 매핑 문제 해결 시도
-        print("Trying different Entry placement methods...")
+        # Entry 위젯 매핑 문제 해결 시도 - 스케일링 200% 대응
+        print("Trying different Entry placement methods for high DPI...")
         
-        # 방법 1: Frame 없이 직접 배치
-        print("Method 1: Direct placement in container")
+        # 스케일링 정보 다시 확인
+        current_scale = self.root.tk.call('tk', 'scaling')
+        print(f"Current scaling when creating Entry: {current_scale}")
+        
+        # 방법 1: 절대 위치 지정으로 Entry 생성 (place 사용)
+        print("Method 1: Using place() with absolute positioning")
+        
+        # 컨테이너 크기 확인
+        input_container.update_idletasks()
+        container_width = input_container.winfo_reqwidth()
+        container_height = input_container.winfo_reqheight()
+        print(f"Container size: {container_width}x{container_height}")
+        
         self.password_entry = tk.Entry(input_container, 
                                       show='•', 
-                                      font=("Arial", 20),        # 큰 폰트
-                                      width=15, 
-                                      bg='red',                  # 빨간 배경
+                                      font=("Arial", 16),        # 폰트 크기 조정
+                                      width=20,                  # 너비 증가
+                                      bg='red',                  # 빨간 배경 (테스트용)
                                       fg='yellow',               # 노란 글자
                                       relief='solid',            # 실선 테두리
-                                      bd=5,                      # 두꺼운 테두리
+                                      bd=3,                      # 테두리 두께
                                       insertbackground='white')  # 흰색 커서
-        self.password_entry.pack(pady=20)
+        
+        # pack 대신 place 사용으로 절대 위치 지정
+        self.password_entry.place(relx=0.5, rely=0.6, anchor='center', 
+                                 width=280, height=40)
         
         # 강제로 업데이트 및 매핑 시도
-        print("Forcing widget updates...")
-        self.password_entry.update_idletasks()
-        self.password_entry.update()
+        print("Forcing widget updates and mapping...")
+        self.root.update_idletasks()
+        self.root.update()
+        input_container.update_idletasks()
+        input_container.update()
         
-        # 매핑 강제 시도
+        # 위젯 강제 매핑 시도
         try:
             self.password_entry.tkraise()  # 위젯을 맨 앞으로
+            self.password_entry.lift()     # 다른 방법으로도 앞으로
             print("Widget raised to front")
-        except:
-            pass
+        except Exception as e:
+            print(f"Widget raise failed: {e}")
+            
+        # 위젯 가시성 강제 설정
+        try:
+            # 위젯이 실제로 보이도록 강제 설정
+            self.password_entry.configure(state='normal')
+            print("Widget state set to normal")
+        except Exception as e:
+            print(f"Widget state setting failed: {e}")
+            
+        # 추가 매핑 시도
+        try:
+            # 부모 컨테이너도 강제 업데이트
+            input_container.tkraise()
+            input_container.lift()
+            print("Container raised to front")
+        except Exception as e:
+            print(f"Container raise failed: {e}")
         
         print("Entry widget configured with HIGH VISIBILITY settings:")
         print(f"- Font: Arial 20")
@@ -431,10 +601,11 @@ class TestFTLock:
         print(f"- Border: solid 5px")
         print(f"- Size: width=15, padding=15x20")
         
-        # Entry 위젯 정보 여러 번 체크
-        self.root.after(50, self._print_entry_info)   # 50ms 후
-        self.root.after(200, self._print_entry_info)  # 200ms 후  
-        self.root.after(500, self._print_entry_info)  # 500ms 후
+        # Entry 위젯 정보 여러 번 체크 및 대안 방법 시도
+        self.root.after(50, self._print_entry_info)    # 50ms 후
+        self.root.after(200, self._print_entry_info)   # 200ms 후  
+        self.root.after(500, self._print_entry_info)   # 500ms 후
+        self.root.after(1000, self._try_alternative_entry_placement)  # 1초 후 대안 시도
         
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
