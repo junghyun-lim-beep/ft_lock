@@ -53,16 +53,15 @@ class TestFTLock:
                 
                 print("monitors.xml 분석:")
                 
-                # 모든 configuration을 확인하되, 첫 번째가 현재 활성
+                # 모든 configuration을 확인
                 configs = root.findall('configuration')
                 print(f"총 {len(configs)}개 configuration 발견")
                 
-                if configs:
-                    # 첫 번째 configuration 사용
-                    active_config = configs[0]
-                    print("첫 번째 configuration 사용:")
+                # 모든 configuration을 순회하면서 출력
+                for config_idx, config in enumerate(configs):
+                    print(f"\n=== Configuration {config_idx + 1} ===")
                     
-                    logicalmonitors = active_config.findall('logicalmonitor')
+                    logicalmonitors = config.findall('logicalmonitor')
                     print(f"  {len(logicalmonitors)}개 logicalmonitor 발견")
                     
                     # 모든 모니터 정보 수집 및 상세 출력
@@ -116,6 +115,11 @@ class TestFTLock:
                                 print(f"    주사율: {rate_val}")
                         
                         monitors_info.append((i+1, scale_val, is_primary))
+                
+                # 첫 번째 configuration을 활성으로 사용 (스케일 선택용)
+                if configs:
+                    active_config = configs[0]
+                    print(f"\n첫 번째 configuration을 활성으로 사용하여 스케일 결정...")
                     
                     # 스케일 선택 로직: xrandr primary 모니터와 정확히 매칭
                     print("\n  xrandr primary 모니터와 monitors.xml 매칭...")
