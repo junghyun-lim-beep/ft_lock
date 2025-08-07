@@ -4,16 +4,10 @@ Test script for the FT Lock screen interface
 This shows the lock screen GUI with PAM authentication and shortcut blocking
 """
 
-import os
-# HiDPI 완전 비활성화 - 프로그램 시작 전에 환경변수 설정
-os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '0'
-os.environ['QT_SCALE_FACTOR'] = '1'
-os.environ['GDK_SCALE'] = '1'
-os.environ['GDK_DPI_SCALE'] = '1'
-
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
+import os
 import getpass
 from datetime import datetime
 import threading
@@ -99,11 +93,11 @@ class TestFTLock:
         return "break"
         
     def update_password_display(self):
-        """Update password display with dots"""
-        if hasattr(self, 'password_display'):
+        """Update password display with dots on canvas"""
+        if hasattr(self, 'password_canvas') and hasattr(self, 'canvas_text_id'):
             dots = '•' * len(self.password_text)
             display_text = f"[{dots}]" if dots else "[패스워드 입력창]"
-            self.password_display.config(text=display_text)
+            self.password_canvas.itemconfig(self.canvas_text_id, text=display_text)
     
     def on_unlock_attempt(self, event=None):
         """Handle unlock attempt (test version with PAM support)"""
@@ -265,44 +259,20 @@ class TestFTLock:
         self.root.title("FT Lock - Test Mode")
         self.root.configure(bg='black')
         
-        # HiDPI 완전 해결: 물리적 픽셀 기준 강제 설정
+        # HiDPI 대응: tkinter 스케일링만 비활성화
         try:
-            # 1. 시스템 DPI 정보 가져오기
-            import subprocess
-            import re
-            
-            try:
-                # xrandr로 실제 해상도와 스케일링 정보 확인
-                result = subprocess.run(['xrandr'], capture_output=True, text=True)
-                if result.returncode == 0:
-                    # 실제 물리적 해상도 추출
-                    matches = re.findall(r'(\d+)x(\d+).*\*', result.stdout)
-                    if matches:
-                        physical_width, physical_height = map(int, matches[0])
-                        print(f"Physical resolution detected: {physical_width}x{physical_height}")
-                        
-                        # 강제로 물리적 해상도 사용
-                        self.root.geometry(f"{physical_width}x{physical_height}+0+0")
-            except:
-                pass
-            
-            # 2. tkinter 스케일링 완전 비활성화
             self.root.tk.call('tk', 'scaling', 1.0)
-            
-            print("HiDPI: Physical resolution forced")
+            print("HiDPI: tkinter scaling disabled")
         except:
-            print("HiDPI: Fallback mode")
+            pass
             
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
         self.root.attributes('-topmost', True)
         
-        # 강제로 일반적인 해상도 사용 (스케일링 무시)
-        # 대부분의 4K 모니터는 3840x2160이므로 직접 설정
-        screen_width = 3840
-        screen_height = 2160
-        
-        print(f"Forcing resolution to: {screen_width}x{screen_height}")
+        # Get screen dimensions
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
         
         # Now remove window decorations
         self.root.overrideredirect(True)
@@ -337,9 +307,19 @@ class TestFTLock:
             print(f"Warning: Could not load background image: {e}")
             self.root.configure(bg='#1a1a2e')
         
-        # Create center container for passcode input (가운데로 이동)
+        # Create center container for passcode input - 절대 좌표 사용
+        center_x = screen_width // 2
+        center_y = screen_height // 2
+        container_width = 400
+        container_height = 350
+        
         input_container = tk.Frame(self.root, bg='black', relief='flat')
-        input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
+        input_container.place(x=center_x - container_width//2, 
+                             y=center_y - container_height//2, 
+                             width=container_width, 
+                             height=container_height)
+        
+        print(f"Container placed at absolute position: {center_x - container_width//2},{center_y - container_height//2}")
 
         
         # Lock icon in input container
@@ -363,12 +343,25 @@ class TestFTLock:
                                font=("Arial", 14), bg='black', fg='white')
         prompt_label.pack(pady=(0, 8))
         
-        # Password entry 대신 Label + Text로 구현 - 더 큰 크기
-        self.password_display = tk.Label(input_container, text="[패스워드 입력창]", 
-                                        font=("Arial", 18), bg='#2a2a3e', fg='white',
-                                        relief='solid', bd=3, width=30, height=3,
-                                        padx=20, pady=10)
-        self.password_display.pack(pady=20)
+        # Canvas로 패스워드 입력창 직접 그리기 (HiDPI 문제 완전 우회)
+        canvas_width = 350
+        canvas_height = 50
+        self.password_canvas = tk.Canvas(input_container, 
+                                       width=canvas_width, 
+                                       height=canvas_height, 
+                                       bg='#2a2a3e', 
+                                       highlightthickness=0)
+        self.password_canvas.pack(pady=20)
+        
+        # 캔버스에 텍스트 그리기
+        self.canvas_text_id = self.password_canvas.create_text(
+            canvas_width//2, canvas_height//2, 
+            text="[패스워드 입력창]", 
+            font=("Arial", 16), 
+            fill="white"
+        )
+        
+        print("Canvas password input created")
         
         # 실제 패스워드 저장용
         self.password_text = ""
