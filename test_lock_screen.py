@@ -65,18 +65,57 @@ class TestFTLock:
                     logicalmonitors = active_config.findall('logicalmonitor')
                     print(f"  {len(logicalmonitors)}개 logicalmonitor 발견")
                     
-                    # 모든 모니터 정보 수집
+                    # 모든 모니터 정보 수집 및 상세 출력
                     monitors_info = []
                     for i, lm in enumerate(logicalmonitors):
-                        scale_elem = lm.find('scale')
-                        primary_elem = lm.find('primary')
+                        print(f"\n  === Monitor {i+1} 상세 정보 ===")
                         
-                        if scale_elem is not None:
-                            scale_val = float(scale_elem.text)
-                            is_primary = primary_elem is not None and primary_elem.text == 'yes'
+                        # 스케일
+                        scale_elem = lm.find('scale')
+                        scale_val = float(scale_elem.text) if scale_elem is not None else 1.0
+                        print(f"    scale: {scale_val}")
+                        
+                        # primary
+                        primary_elem = lm.find('primary')
+                        is_primary = primary_elem is not None and primary_elem.text == 'yes'
+                        print(f"    primary: {is_primary}")
+                        
+                        # x, y 좌표
+                        x_elem = lm.find('x')
+                        y_elem = lm.find('y')
+                        x_val = x_elem.text if x_elem is not None else 'N/A'
+                        y_val = y_elem.text if y_elem is not None else 'N/A'
+                        print(f"    좌표: ({x_val}, {y_val})")
+                        
+                        # 모니터 상세 정보
+                        for monitor in lm.findall('monitor'):
+                            monitorspec = monitor.find('monitorspec')
+                            if monitorspec is not None:
+                                connector = monitorspec.find('connector')
+                                vendor = monitorspec.find('vendor')
+                                product = monitorspec.find('product')
+                                serial = monitorspec.find('serial')
+                                
+                                print(f"    connector: {connector.text if connector is not None else 'N/A'}")
+                                print(f"    vendor: {vendor.text if vendor is not None else 'N/A'}")
+                                print(f"    product: {product.text if product is not None else 'N/A'}")
+                                print(f"    serial: {serial.text if serial is not None else 'N/A'}")
                             
-                            monitors_info.append((i+1, scale_val, is_primary))
-                            print(f"  Monitor {i+1}: scale={scale_val}, primary={is_primary}")
+                            # 해상도 정보
+                            mode = monitor.find('mode')
+                            if mode is not None:
+                                width = mode.find('width')
+                                height = mode.find('height')
+                                rate = mode.find('rate')
+                                
+                                width_val = width.text if width is not None else 'N/A'
+                                height_val = height.text if height is not None else 'N/A'
+                                rate_val = rate.text if rate is not None else 'N/A'
+                                
+                                print(f"    해상도: {width_val}x{height_val}")
+                                print(f"    주사율: {rate_val}")
+                        
+                        monitors_info.append((i+1, scale_val, is_primary))
                     
                     # 스케일 선택 로직: xrandr primary 모니터와 정확히 매칭
                     print("\n  xrandr primary 모니터와 monitors.xml 매칭...")
