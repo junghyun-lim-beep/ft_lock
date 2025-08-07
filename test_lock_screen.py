@@ -41,6 +41,10 @@ class TestFTLock:
         """실제 활성화된 모니터의 스케일 가져오기"""
         actual_scale = 1.0
         
+        print("=" * 60)
+        print("활성 모니터 스케일 감지")
+        print("=" * 60)
+        
         try:
             # 1. 활성 모니터 정보 가져오기
             import subprocess
@@ -49,13 +53,17 @@ class TestFTLock:
             
             if result.returncode == 0:
                 active_connector = None
+                print("xrandr --listactivemonitors 출력:")
+                print(result.stdout.strip())
+                print()
+                
                 for line in result.stdout.split('\n'):
                     if ':' in line and '+' in line:
                         # "0: +*eDP 3840/597x2160/336+0+0 eDP" 형태에서 connector 추출
                         parts = line.split()
                         if len(parts) >= 2:
                             active_connector = parts[-1]  # 마지막 부분이 connector
-                            print(f"활성 모니터: {active_connector}")
+                            print(f"🎯 활성 모니터 connector: {active_connector}")
                             break
                 
                 if not active_connector:
@@ -69,34 +77,141 @@ class TestFTLock:
                     root = tree.getroot()
                     
                     configs = root.findall('configuration')
+                    print(f"\nmonitors.xml에서 총 {len(configs)}개 configuration 발견")
+                    
+                    all_matches = []  # 모든 매칭 결과 저장
+                    
                     for config_idx, config in enumerate(configs):
-                        print(f"Configuration {config_idx + 1} 확인:")
+                        print(f"\n=== Configuration {config_idx + 1} 분석 ===")
                         
                         logicalmonitors = config.findall('logicalmonitor')
+                        print(f"  {len(logicalmonitors)}개 logicalmonitor 발견")
+                        
+                        config_matches = []  # 현재 configuration의 매칭 결과
+                        
                         for lm_idx, lm in enumerate(logicalmonitors):
+                            print(f"\n  LogicalMonitor {lm_idx + 1}:")
+                            
+                            # 스케일 정보
+                            scale_elem = lm.find('scale')
+                            scale_val = float(scale_elem.text) if scale_elem is not None else 1.0
+                            
+                            # primary 정보
+                            primary_elem = lm.find('primary')
+                            is_primary = primary_elem is not None and primary_elem.text == 'yes'
+                            
+                            # 좌표 정보
+                            x_elem = lm.find('x')
+                            y_elem = lm.find('y')
+                            x_val = x_elem.text if x_elem is not None else '0'
+                            y_val = y_elem.text if y_elem is not None else '0'
+                            
+                            print(f"    Scale: {scale_val}")
+                            print(f"    Primary: {is_primary}")
+                            print(f"    Position: ({x_val}, {y_val})")
+                            
                             for monitor in lm.findall('monitor'):
                                 monitorspec = monitor.find('monitorspec')
                                 if monitorspec is not None:
                                     connector = monitorspec.find('connector')
+                                    vendor = monitorspec.find('vendor')
+                                    product = monitorspec.find('product')
+                                    serial = monitorspec.find('serial')
                                     
+                                    connector_text = connector.text if connector is not None else 'N/A'
+                                    vendor_text = vendor.text if vendor is not None else 'N/A'
+                                    product_text = product.text if product is not None else 'N/A'
+                                    serial_text = serial.text if serial is not None else 'N/A'
+                                    
+                                    print(f"    Connector: {connector_text}")
+                                    print(f"    Vendor: {vendor_text}")
+                                    print(f"    Product: {product_text}")
+                                    print(f"    Serial: {serial_text}")
+                                    
+                                    # 활성 모니터와 connector 매칭 확인
                                     if (connector is not None and 
                                         connector.text == active_connector):
                                         
-                                        scale_elem = lm.find('scale')
-                                        scale_val = float(scale_elem.text) if scale_elem is not None else 1.0
+                                        match_info = {
+                                            'config_idx': config_idx + 1,
+                                            'lm_idx': lm_idx + 1,
+                                            'connector': connector_text,
+                                            'scale': scale_val,
+                                            'primary': is_primary,
+                                            'position': (x_val, y_val),
+                                            'vendor': vendor_text,
+                                            'product': product_text,
+                                            'serial': serial_text
+                                        }
                                         
-                                        print(f"✅ 매칭 성공! {active_connector}")
-                                        print(f"   Scale: {scale_val}")
+                                        config_matches.append(match_info)
+                                        all_matches.append(match_info)
                                         
-                                        return scale_val
+                                        print(f"    🎯 매칭 성공!")
+                                    else:
+                                        print(f"    ❌ 매칭 실패: {connector_text} ≠ {active_connector}")
+                        
+                        if config_matches:
+                            print(f"\n  ✅ Configuration {config_idx + 1}에서 {len(config_matches)}개 매칭됨:")
+                            for i, match in enumerate(config_matches):
+                                print(f"    {i+1}. Scale: {match['scale']}, Primary: {match['primary']}, Position: {match['position']}")
+                        else:
+                            print(f"\n  ❌ Configuration {config_idx + 1}에서 매칭 없음")
                     
-                    print(f"❌ monitors.xml에서 {active_connector}를 찾을 수 없음")
+                    # 결과 요약 및 선택
+                    print(f"\n{'='*60}")
+                    print("매칭 결과 요약:")
+                    print("="*60)
+                    
+                    if all_matches:
+                        print(f"총 {len(all_matches)}개 매칭 발견:")
+                        
+                        for i, match in enumerate(all_matches):
+                            print(f"\n{i+1}. Configuration {match['config_idx']}, LogicalMonitor {match['lm_idx']}")
+                            print(f"   Connector: {match['connector']}")
+                            print(f"   Scale: {match['scale']}")
+                            print(f"   Primary: {match['primary']}")
+                            print(f"   Position: {match['position']}")
+                            print(f"   Vendor: {match['vendor']}")
+                            print(f"   Product: {match['product']}")
+                            print(f"   Serial: {match['serial']}")
+                        
+                        # 선택 로직: Primary 우선, 그 다음 첫 번째
+                        primary_matches = [m for m in all_matches if m['primary']]
+                        
+                        if primary_matches:
+                            selected = primary_matches[0]
+                            print(f"\n🏆 Primary 모니터 선택: Configuration {selected['config_idx']}, Scale {selected['scale']}")
+                        else:
+                            selected = all_matches[0]
+                            print(f"\n📌 첫 번째 매칭 모니터 선택: Configuration {selected['config_idx']}, Scale {selected['scale']}")
+                        
+                        actual_scale = selected['scale']
+                        
+                    else:
+                        print(f"❌ {active_connector}와 매칭되는 모니터를 찾을 수 없음")
+                        print("monitors.xml의 모든 connector들:")
+                        for config_idx, config in enumerate(configs):
+                            logicalmonitors = config.findall('logicalmonitor')
+                            for lm_idx, lm in enumerate(logicalmonitors):
+                                for monitor in lm.findall('monitor'):
+                                    monitorspec = monitor.find('monitorspec')
+                                    if monitorspec is not None:
+                                        connector = monitorspec.find('connector')
+                                        if connector is not None:
+                                            print(f"  Config {config_idx+1}, LM {lm_idx+1}: {connector.text}")
                 else:
                     print("❌ monitors.xml 파일이 없음")
+            else:
+                print("❌ xrandr --listactivemonitors 실행 실패")
                 
         except Exception as e:
             print(f"❌ 오류: {e}")
+            import traceback
+            traceback.print_exc()
         
+        print(f"\n최종 선택된 스케일: {actual_scale}")
+        print("="*60)
         return actual_scale
         
     def authenticate_user(self, username, password):
