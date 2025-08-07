@@ -304,29 +304,29 @@ class TestFTLock:
         # 모든 요소를 컨테이너 내부 절대 위치로 고정 배치
         print("🔧 Placing ALL elements at FIXED positions inside container!")
         
-        # Lock icon - 고정 위치
-        lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
+        # Lock icon - 컨테이너 중앙 정렬
+        lock_label = tk.Label(input_container, text="🔒", font=("Arial", 40), 
                              bg='black', fg='white')
-        lock_label.place(x=200, y=20)  # 컨테이너 상단 중앙
+        lock_label.place(x=210, y=15)  # 컨테이너 상단 중앙
         
-        # System info - 고정 위치
+        # System info - 중앙 정렬
         hostname = os.uname().nodename
         
         self.time_label = tk.Label(input_container, text="", 
-                             font=("Arial", 20, "bold"), bg='black', fg='white')
-        self.time_label.place(x=225, y=90)  # 락 아이콘 아래
+                             font=("Arial", 18, "bold"), bg='black', fg='white')
+        self.time_label.place(x=170, y=75)  # 락 아이콘 아래
         
         self.date_label = tk.Label(input_container, text="",
-                             font=("Arial", 12), bg='black', fg='gray')
-        self.date_label.place(x=225, y=120)  # 시간 아래
+                             font=("Arial", 11), bg='black', fg='gray')
+        self.date_label.place(x=140, y=105)  # 시간 아래
         
-        # Password prompt - 고정 위치
+        # Password prompt - 중앙 정렬
         prompt_label = tk.Label(input_container, text="Enter Password:",
-                               font=("Arial", 14), bg='black', fg='white')
-        prompt_label.place(x=170, y=160)  # 날짜 아래
+                               font=("Arial", 13), bg='black', fg='white')
+        prompt_label.place(x=170, y=140)  # 날짜 아래
         
-        # Password entry - 고정 위치
-        font_size = 16
+        # Password entry - 고정 위치 및 크기
+        font_size = 14
         bg_color = '#6a6a9e'     # 밝은 보라색 배경
         
         self.password_entry = tk.Entry(input_container,
@@ -335,34 +335,34 @@ class TestFTLock:
                                       bg=bg_color,
                                       fg='white',
                                       relief='solid',
-                                      bd=3,
-                                      highlightthickness=2,
+                                      bd=2,
+                                      highlightthickness=1,
                                       highlightcolor='#ffffff',
                                       insertbackground='white',
                                       insertwidth=2)
         
-        # Entry 고정 위치 및 크기
-        self.password_entry.place(x=75, y=190, width=300, height=45)  # prompt 아래
+        # Entry 중앙 정렬 및 적절한 크기
+        self.password_entry.place(x=75, y=170, width=300, height=40)  # prompt 아래
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
         # Allow only specific keys in password entry
         self.password_entry.bind('<Key>', lambda e: None if self.block_all_keys(e) != "break" else "break")
         
-        # Unlock button with modern styling
-        unlock_btn = tk.Button(input_container, text="Unlock", font=("Arial", 12, "bold"),
+        # Unlock button - 고정 위치
+        unlock_btn = tk.Button(input_container, text="Unlock", font=("Arial", 11, "bold"),
                               command=self.on_unlock_attempt, 
                               bg='#4a69bd', fg='white', relief='flat',
-                              padx=30, pady=8, cursor='hand2')
-        unlock_btn.pack(pady=(0, 10))
+                              cursor='hand2')
+        unlock_btn.place(x=185, y=225, width=80, height=35)  # Entry 아래 중앙
         
-        # Status label with authentication method info
+        # Status label - 고정 위치
         auth_info = "PAM + test mode" if PAM_AVAILABLE else "Test mode only"
         status_text = f"Auth: {auth_info}\nEnter your password or 'test' to unlock"
         
-        self.status_label = tk.Label(input_container, text=status_text, font=("Arial", 10),
+        self.status_label = tk.Label(input_container, text=status_text, font=("Arial", 9),
                                     bg='black', fg='orange', wraplength=350, justify='center')
-        self.status_label.pack(pady=(0, 10))
+        self.status_label.place(x=50, y=275, width=350, height=60)  # 버튼 아래
         
         # Center bottom info (user and hostname)
         bottom_container = tk.Frame(self.root, bg='black')
