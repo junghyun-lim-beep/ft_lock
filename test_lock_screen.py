@@ -291,67 +291,58 @@ class TestFTLock:
             print(f"Warning: Could not load background image: {e}")
             self.root.configure(bg='#1a1a2e')
         
-        # Create center container with FIXED size and position
-        container_width = 500
-        container_height = 400
-        container_x = 710  # 고정 X 위치 (1920 기준 중앙)
-        container_y = 340  # 고정 Y 위치 (1080 기준 중앙)
+        # Create container - 화면 중앙 상대값, 내부 요소들만 절대 고정
+        container_width = 450
+        container_height = 420
         
         input_container = tk.Frame(self.root, bg='black', relief='solid', bd=2)
-        input_container.place(x=container_x, y=container_y, width=container_width, height=container_height)
+        input_container.place(relx=0.5, rely=0.5, anchor='center', width=container_width, height=container_height)
         
-        print(f"Container FIXED at ({container_x}, {container_y}) size {container_width}x{container_height}")
+        print(f"Container at SCREEN CENTER (relative), size {container_width}x{container_height}")
+        print("🔒 Container centered, but ALL internal elements are ABSOLUTELY FIXED!")
         
-        # Lock icon in input container
+        # 모든 요소를 컨테이너 내부 절대 위치로 고정 배치
+        print("🔧 Placing ALL elements at FIXED positions inside container!")
+        
+        # Lock icon - 고정 위치
         lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
                              bg='black', fg='white')
-        lock_label.pack(pady=(20, 10))
+        lock_label.place(x=200, y=20)  # 컨테이너 상단 중앙
         
-        # System info (실시간 업데이트를 위해 라벨을 인스턴스 변수로 저장)
+        # System info - 고정 위치
         hostname = os.uname().nodename
         
         self.time_label = tk.Label(input_container, text="", 
                              font=("Arial", 20, "bold"), bg='black', fg='white')
-        self.time_label.pack(pady=(0, 2))
+        self.time_label.place(x=225, y=90)  # 락 아이콘 아래
         
         self.date_label = tk.Label(input_container, text="",
                              font=("Arial", 12), bg='black', fg='gray')
-        self.date_label.pack(pady=(0, 15))
+        self.date_label.place(x=225, y=120)  # 시간 아래
         
-        # Password prompt
+        # Password prompt - 고정 위치
         prompt_label = tk.Label(input_container, text="Enter Password:",
                                font=("Arial", 14), bg='black', fg='white')
-        prompt_label.pack(pady=(0, 8))
+        prompt_label.place(x=170, y=160)  # 날짜 아래
         
-        # Password entry with FIXED positioning INSIDE container
-        print("🔧 Creating Entry with FIXED position INSIDE the container!")
+        # Password entry - 고정 위치
+        font_size = 16
+        bg_color = '#6a6a9e'     # 밝은 보라색 배경
         
-        # 컨테이너 내부 고정 설정
-        font_size = 18           # 고정 폰트
-        entry_width = 350        # 고정 너비 (컨테이너보다 작게)
-        entry_height = 50        # 고정 높이
-        entry_x = 75             # 컨테이너 내부 고정 X (중앙: 500/2 - 350/2 = 75)
-        entry_y = 200            # 컨테이너 내부 고정 Y
-        bg_color = '#8a8abe'     # 밝은 보라색 배경
-        
-        # Entry를 컨테이너 안에 생성 (컨테이너 내부 절대 위치)
         self.password_entry = tk.Entry(input_container,
                                       show='•',
                                       font=("Arial", font_size, "bold"),
                                       bg=bg_color,
                                       fg='white',
                                       relief='solid',
-                                      bd=4,
+                                      bd=3,
                                       highlightthickness=2,
                                       highlightcolor='#ffffff',
                                       insertbackground='white',
-                                      insertwidth=3)
+                                      insertwidth=2)
         
-        # 컨테이너 내부 절대 위치로 배치
-        self.password_entry.place(x=entry_x, y=entry_y, width=entry_width, height=entry_height)
-        
-        print(f"Entry FIXED inside container at ({entry_x}, {entry_y}) size {entry_width}x{entry_height}")
-        print(f"Container and Entry positions are FIXED on ALL screens!")
+        # Entry 고정 위치 및 크기
+        self.password_entry.place(x=75, y=190, width=300, height=45)  # prompt 아래
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
