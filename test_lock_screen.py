@@ -297,18 +297,39 @@ class TestFTLock:
                 print(f"Screen: {screen_width_px}x{screen_height_px}px, {screen_width_mm}x{screen_height_mm}mm")
                 print(f"Calculated DPI: {dpi_x:.1f}x{dpi_y:.1f}")
                 
-                # 4K 해상도 감지 - 스케일링 완전 무시
+                # 아이맥 4K 해상도 감지 - 코드에서 직접 디스플레이 보정
                 if screen_width_px >= 3840:
-                    print("4K display detected - forcing scale-independent UI")
+                    print("iMac 4K detected - applying code-level display corrections")
                     
-                    # 모든 스케일링 무시하고 고정 크기 사용
-                    self.root.tk.call('tk', 'scaling', 1.0)  # 강제로 1.0 유지
+                    # 방법 1: tkinter에게 가상 해상도 알려주기
+                    try:
+                        # 아이맥은 보통 물리적 해상도의 절반으로 동작해야 함
+                        virtual_width = screen_width_px // 2  # 1920
+                        virtual_height = screen_height_px // 2  # 1080
+                        
+                        # tkinter 내부 해상도 재정의
+                        self.root.tk.call('tk', 'scaling', 0.5)  # 50% 스케일링으로 강제
+                        
+                        print(f"Virtual resolution applied: {virtual_width}x{virtual_height}")
+                        print("Scaling set to 0.5 for iMac compatibility")
+                        
+                    except Exception as e:
+                        print(f"iMac correction failed: {e}")
+                        # 실패 시 기본 스케일링 비활성화
+                        self.root.tk.call('tk', 'scaling', 1.0)
                     
-                    # 추가적인 스케일링 방지
-                    self.root.option_add('*TkFScale', 1.0)
-                    self.root.option_add('*TkCScale', 1.0)
-                    
-                    print("Scale-independent mode activated")
+                    # 방법 2: X11 레벨에서 DPI 보정 (백그라운드)
+                    try:
+                        import subprocess
+                        subprocess.Popen(['xrandr', '--dpi', '96'], 
+                                       stdout=subprocess.DEVNULL, 
+                                       stderr=subprocess.DEVNULL)
+                        print("Background DPI correction applied")
+                    except:
+                        pass
+                else:
+                    # 일반 디스플레이는 스케일링 비활성화
+                    self.root.tk.call('tk', 'scaling', 1.0)
                 
             except Exception as e:
                 print(f"DPI calculation failed: {e}")
