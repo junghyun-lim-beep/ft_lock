@@ -38,7 +38,7 @@ class TestFTLock:
         self.lockout_start_time = None  # 잠금 시작 시간
         
     def get_display_scale(self):
-        """monitors.xml에서 정확한 디스플레이 스케일 값 가져오기"""
+        """monitors.xml에서 현재 사용 중인 스케일 찾기 (모니터 이름 매칭)"""
         actual_scale = 1.0
         
         print("=" * 50)
@@ -46,95 +46,93 @@ class TestFTLock:
         print("=" * 50)
         
         try:
-            # xrandr로 현재 해상도 확인 (매칭용)
+            # 현재 연결된 모니터 이름 확인
             import subprocess
+            current_monitor = None
             
-            print("1. xrandr로 현재 해상도 확인 중...")
+            print("1. 현재 연결된 모니터 확인...")
             xrandr_result = subprocess.run(['xrandr'], capture_output=True, text=True, timeout=5)
-            physical_width = None
-            physical_height = None
-            
             if xrandr_result.returncode == 0:
                 for line in xrandr_result.stdout.split('\n'):
-                    if ' connected' in line and 'x' in line:
-                        parts = line.split()
-                        for part in parts:
-                            if 'x' in part and '+' in part:
-                                resolution = part.split('+')[0]
-                                if 'x' in resolution:
-                                    physical_width = int(resolution.split('x')[0])
-                                    physical_height = int(resolution.split('x')[1])
-                                    print(f"   현재 해상도: {physical_width}x{physical_height}")
-                                    break
-                        if physical_width:
-                            break
+                    if ' connected primary' in line:
+                        current_monitor = line.split()[0]
+                        print(f"   현재 Primary 모니터: {current_monitor}")
+                        break
             
-            # monitors.xml에서 스케일 확인
-            print("\n2. monitors.xml에서 스케일 값 찾기...")
+            # monitors.xml 확인
             monitors_file = os.path.expanduser("~/.config/monitors.xml")
             if os.path.exists(monitors_file):
+                print(f"\n2. monitors.xml 파일 분석...")
                 tree = ET.parse(monitors_file)
                 root = tree.getroot()
                 
-                config_count = 0
-                for config in root.findall('configuration'):
-                    config_count += 1
-                    print(f"   Configuration {config_count}:")
+                # 모든 configuration 확인하고 가장 최근 것 사용 (첫 번째)
+                first_config = root.find('configuration')
+                if first_config is not None:
+                    print("첫 번째 Configuration의 모든 모니터:")
                     
-                    for logicalmonitor in config.findall('logicalmonitor'):
-                        # 해상도 확인
-                        config_resolution = None
-                        for monitor in logicalmonitor.findall('monitor'):
-                            mode = monitor.find('mode')
-                            if mode is not None:
-                                width_elem = mode.find('width')
-                                height_elem = mode.find('height')
-                                if width_elem is not None and height_elem is not None:
-                                    config_resolution = f"{width_elem.text}x{height_elem.text}"
-                        
-                        # 스케일 확인
+                    primary_scales = []
+                    all_scales = []
+                    
+                    for logicalmonitor in first_config.findall('logicalmonitor'):
                         scale_elem = logicalmonitor.find('scale')
                         primary_elem = logicalmonitor.find('primary')
+                        
                         if scale_elem is not None:
                             is_primary = primary_elem is not None and primary_elem.text == 'yes'
                             scale_value = float(scale_elem.text)
                             
-                            print(f"     스케일: {scale_value}, Primary: {is_primary}, 해상도: {config_resolution}")
+                            # 모니터 이름 찾기
+                            monitor_name = "알 수 없음"
+                            for monitor in logicalmonitor.findall('monitor'):
+                                monitorspec = monitor.find('monitorspec')
+                                if monitorspec is not None:
+                                    connector = monitorspec.find('connector')
+                                    if connector is not None:
+                                        monitor_name = connector.text
+                                        break
                             
-                            # 현재 해상도와 일치하는 configuration을 찾으면 사용
-                            if config_resolution and physical_width and physical_height:
-                                expected_resolution = f"{physical_width}x{physical_height}"
-                                if config_resolution == expected_resolution:
+                            # 해상도 정보
+                            config_resolution = "알 수 없음"
+                            for monitor in logicalmonitor.findall('monitor'):
+                                mode = monitor.find('mode')
+                                if mode is not None:
+                                    width_elem = mode.find('width')
+                                    height_elem = mode.find('height')
+                                    if width_elem is not None and height_elem is not None:
+                                        config_resolution = f"{width_elem.text}x{height_elem.text}"
+                                        break
+                            
+                            print(f"  모니터: {monitor_name}, 스케일: {scale_value}, Primary: {is_primary}, 해상도: {config_resolution}")
+                            
+                            all_scales.append(scale_value)
+                            if is_primary:
+                                primary_scales.append(scale_value)
+                                
+                                # 현재 모니터와 이름이 일치하면 우선 선택
+                                if current_monitor and monitor_name == current_monitor:
                                     actual_scale = scale_value
-                                    print(f"     ✓ 현재 해상도와 일치! 스케일: {actual_scale}")
-                                    break
-                            # 해상도 매칭 실패시 첫 번째 primary 사용
-                            elif is_primary and actual_scale == 1.0:
-                                actual_scale = scale_value
-                                print(f"     ✓ Primary 모니터 스케일 사용: {actual_scale}")
+                                    print(f"  ✓ 현재 모니터와 일치! 스케일: {actual_scale}")
                     
-                    if actual_scale != 1.0:
-                        break
-                
-                if actual_scale == 1.0:
-                    # 모든 방법 실패시 첫 번째 스케일 사용
-                    for config in root.findall('configuration'):
-                        for logicalmonitor in config.findall('logicalmonitor'):
-                            scale_elem = logicalmonitor.find('scale')
-                            if scale_elem is not None:
-                                actual_scale = float(scale_elem.text)
-                                print(f"   → 첫 번째 스케일 사용: {actual_scale}")
-                                break
-                        if actual_scale != 1.0:
-                            break
+                    # 모니터 이름 매칭 실패시 다른 방법들 시도
+                    if actual_scale == 1.0:
+                        if primary_scales:
+                            # 가장 높은 primary 스케일 사용 (보통 메인 모니터가 높은 스케일)
+                            actual_scale = max(primary_scales)
+                            print(f"  → 가장 높은 Primary 스케일 선택: {actual_scale}")
+                        elif all_scales:
+                            # 가장 높은 스케일 사용
+                            actual_scale = max(all_scales)
+                            print(f"  → 가장 높은 스케일 선택: {actual_scale}")
+                else:
+                    print("Configuration을 찾을 수 없음")
             else:
-                print("   monitors.xml 파일이 존재하지 않음")
+                print("monitors.xml 파일이 존재하지 않음")
                         
         except Exception as e:
-            print(f"   오류 발생: {e}")
+            print(f"오류 발생: {e}")
         
-        print(f"\n3. 최종 결과:")
-        print(f"   선택된 스케일: {actual_scale}")
+        print(f"\n최종 결과: {actual_scale}")
         print("=" * 50)
         
         return actual_scale
