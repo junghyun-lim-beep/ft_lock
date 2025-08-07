@@ -245,7 +245,7 @@ class TestFTLock:
             self.root.after(1000, self.update_time)
             
     def _check_entry_status(self):
-        """Entry 위젯 상태 확인 (간단한 디버깅)"""
+        """Entry 위젯 상태 확인 및 문제 시 강제 수정"""
         try:
             if hasattr(self, 'password_entry') and self.password_entry:
                 is_mapped = self.password_entry.winfo_ismapped()
@@ -257,6 +257,48 @@ class TestFTLock:
                 
                 if not is_mapped or not is_viewable or width < 10 or height < 10:
                     print("⚠️  Entry widget has visibility issues!")
+                    print("🔧 Attempting emergency fix...")
+                    
+                    # 긴급 수정: 새로운 Entry를 root에 직접 생성
+                    try:
+                        # 기존 Entry 제거
+                        if hasattr(self, 'password_entry') and self.password_entry:
+                            self.password_entry.destroy()
+                        
+                        # 화면 중앙에 직접 Entry 생성
+                        screen_width = self.root.winfo_screenwidth()
+                        screen_height = self.root.winfo_screenheight()
+                        
+                        self.password_entry = tk.Entry(self.root,
+                                                      show='•',
+                                                      font=("Arial", 16),
+                                                      width=20,
+                                                      bg='#6a6a8e',  # 더욱 밝은 배경
+                                                      fg='white',
+                                                      relief='solid',
+                                                      bd=3,
+                                                      insertbackground='white')
+                        
+                        # 화면 정중앙에 배치
+                        x = screen_width // 2 - 150
+                        y = screen_height // 2 + 50
+                        self.password_entry.place(x=x, y=y, width=300, height=50)
+                        
+                        # 이벤트 재바인딩
+                        self.password_entry.bind('<Return>', self.on_unlock_attempt)
+                        self.password_entry.bind('<Key>', lambda e: None if self.block_all_keys(e) != "break" else "break")
+                        
+                        # 강제 업데이트 및 포커스
+                        self.root.update()
+                        self.password_entry.focus_set()
+                        
+                        print("✅ Emergency Entry created directly on root!")
+                        
+                        # 상태 재확인
+                        self.root.after(100, lambda: print(f"Emergency Entry status: mapped={self.password_entry.winfo_ismapped()}, viewable={self.password_entry.winfo_viewable()}"))
+                        
+                    except Exception as fix_e:
+                        print(f"❌ Emergency fix failed: {fix_e}")
                 else:
                     print("✅ Entry widget appears to be visible")
         except Exception as e:
@@ -381,18 +423,63 @@ class TestFTLock:
                 print("No scaling environment variables found")
         except:
             print("Environment variable detection failed")
+            
+        # 방법 4: GNOME/우분투 시스템 스케일링 직접 확인
+        system_scale = 1.0
+        try:
+            import subprocess
+            
+            # gsettings로 GNOME 스케일링 확인
+            try:
+                result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'scaling-factor'], 
+                                      capture_output=True, text=True, timeout=2)
+                if result.returncode == 0:
+                    scale_str = result.stdout.strip()
+                    if scale_str.startswith('uint32'):
+                        # uint32 2 형태에서 숫자 추출
+                        system_scale = float(scale_str.split()[-1])
+                        print(f"GNOME scaling-factor: {system_scale}")
+                    else:
+                        system_scale = float(scale_str)
+                        print(f"GNOME scaling-factor: {system_scale}")
+            except:
+                print("gsettings scaling-factor check failed")
+            
+            # text-scaling-factor도 확인
+            try:
+                result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'text-scaling-factor'], 
+                                      capture_output=True, text=True, timeout=2)
+                if result.returncode == 0:
+                    text_scale = float(result.stdout.strip())
+                    print(f"GNOME text-scaling-factor: {text_scale}")
+                    if text_scale > system_scale:
+                        system_scale = text_scale
+            except:
+                print("gsettings text-scaling-factor check failed")
+                
+        except:
+            print("System scaling detection failed")
+            
+        print(f"System scale: {system_scale}")
         
-        # 최종 스케일 결정 (가장 높은 값 사용)
-        detected_scales = [tk_scale, dpi_scale, env_scale]
-        current_scale = max(detected_scales)
+        # 최종 스케일 결정 (시스템 스케일 우선, 그 다음 최대값)
+        detected_scales = [tk_scale, dpi_scale, env_scale, system_scale]
         
-        print(f"All detected scales: {detected_scales}")
+        # 시스템 스케일이 2.0이면 확실히 200%
+        if system_scale >= 2.0:
+            current_scale = system_scale
+            print(f"Using system scale (200% detected): {current_scale}")
+        else:
+            current_scale = max(detected_scales)
+            print(f"Using max detected scale: {current_scale}")
+        
+        print(f"All detected scales: tkinter={tk_scale}, dpi={dpi_scale:.2f}, env={env_scale}, system={system_scale}")
         print(f"Final scale decision: {current_scale}")
         print("=== SCALING DETECTION END ===")
         
-        # 1.25 이상이면 고해상도로 판단 (우분투에서 1.33333은 실제로는 200%일 가능성)
-        is_high_dpi = current_scale >= 1.25
-        print(f"High DPI mode: {is_high_dpi} (threshold: 1.25)")
+        # 우분투에서 1.25 이상이거나 시스템이 2.0이면 고해상도
+        is_high_dpi = current_scale >= 1.25 or system_scale >= 2.0
+        print(f"High DPI mode: {is_high_dpi} (scale={current_scale}, system={system_scale})")
         
         entry_frame = tk.Frame(input_container, bg='black')
         entry_frame.pack(pady=(0, 15))
