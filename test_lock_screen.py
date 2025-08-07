@@ -250,12 +250,24 @@ class TestFTLock:
         self.root.title("FT Lock - Test Mode")
         self.root.configure(bg='black')
         
-        # HiDPI 대응: tkinter 자동 스케일링 완전 비활성화
+        # HiDPI 대응: 강력한 스케일링 고정
         try:
+            # 1. tkinter 스케일링 비활성화
             self.root.tk.call('tk', 'scaling', 1.0)
-            print("HiDPI: tkinter scaling disabled for consistent UI")
+            
+            # 2. DPI 인식 완전 비활성화 (Windows)
+            try:
+                import ctypes
+                ctypes.windll.user32.SetProcessDPIAware()
+            except:
+                pass
+                
+            # 3. 폰트 DPI 고정
+            self.root.option_add('*Font', 'Arial 12')
+            
+            print("HiDPI: Enhanced scaling disabled")
         except:
-            pass
+            print("HiDPI: Basic scaling disabled")
             
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
@@ -346,12 +358,12 @@ class TestFTLock:
         entry_frame.pack(pady=(0, 15))
         print("Entry frame added")
         
-        self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 16),
-                                      width=20, bg='white', fg='black',  # 흰 배경, 검은 글자로 변경
-                                      relief='solid', bd=2, insertbackground='black',
-                                      highlightbackground='cyan', highlightthickness=3)
-        self.password_entry.pack(ipady=10, ipadx=15)
-        print("Password entry added with white background")
+        self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 24),  # 폰트 크기 증가
+                                      width=15, bg='yellow', fg='black',  # 노란 배경으로 눈에 띄게
+                                      relief='solid', bd=8, insertbackground='red',
+                                      highlightbackground='blue', highlightthickness=8)  # 테두리 두껍게
+        self.password_entry.pack(ipady=15, ipadx=20, fill=tk.X)  # 더 크게 패딩
+        print("Password entry added with LARGE yellow background")
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
