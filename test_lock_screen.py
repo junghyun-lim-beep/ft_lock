@@ -4,10 +4,16 @@ Test script for the FT Lock screen interface
 This shows the lock screen GUI with PAM authentication and shortcut blocking
 """
 
+import os
+# HiDPI 완전 비활성화 - 프로그램 시작 전에 환경변수 설정
+os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '0'
+os.environ['QT_SCALE_FACTOR'] = '1'
+os.environ['GDK_SCALE'] = '1'
+os.environ['GDK_DPI_SCALE'] = '1'
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 from PIL import Image, ImageTk
-import os
 import getpass
 from datetime import datetime
 import threading
@@ -291,20 +297,18 @@ class TestFTLock:
         self.root.attributes('-fullscreen', True)
         self.root.attributes('-topmost', True)
         
-        # Get screen dimensions BEFORE overrideredirect
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
+        # 강제로 일반적인 해상도 사용 (스케일링 무시)
+        # 대부분의 4K 모니터는 3840x2160이므로 직접 설정
+        screen_width = 3840
+        screen_height = 2160
         
-        # Debug: 화면 정보 출력
-        print(f"Screen resolution: {screen_width}x{screen_height}")
-        print(f"Screen size (mm): {self.root.winfo_screenmmwidth()}x{self.root.winfo_screenmmheight()}")
+        print(f"Forcing resolution to: {screen_width}x{screen_height}")
         
         # Now remove window decorations
         self.root.overrideredirect(True)
         
         # Force window to cover entire screen
         self.root.geometry(f"{screen_width}x{screen_height}+0+0")
-        print(f"Window geometry set to: {screen_width}x{screen_height}+0+0")
         
         # Block all key combinations globally
         self.root.bind('<Key>', self.block_all_keys)
@@ -359,11 +363,12 @@ class TestFTLock:
                                font=("Arial", 14), bg='black', fg='white')
         prompt_label.pack(pady=(0, 8))
         
-        # Password entry 대신 Label + Text로 구현
+        # Password entry 대신 Label + Text로 구현 - 더 큰 크기
         self.password_display = tk.Label(input_container, text="[패스워드 입력창]", 
-                                        font=("Arial", 16), bg='#2a2a3e', fg='white',
-                                        relief='flat', bd=2, width=25, height=2)
-        self.password_display.pack(pady=15)
+                                        font=("Arial", 18), bg='#2a2a3e', fg='white',
+                                        relief='solid', bd=3, width=30, height=3,
+                                        padx=20, pady=10)
+        self.password_display.pack(pady=20)
         
         # 실제 패스워드 저장용
         self.password_text = ""
