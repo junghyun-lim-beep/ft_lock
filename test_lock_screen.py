@@ -349,10 +349,10 @@ class TestFTLock:
         try:
             bg_path = os.path.join(os.path.dirname(__file__), 'images', 'lock_background.png')
             if os.path.exists(bg_path):
-                # Load and resize background image with scale consideration
+                # Load and resize background image to logical screen size (not scaled)
                 bg_image = Image.open(bg_path)
-                # 스케일을 고려한 이미지 리사이징
-                bg_image = bg_image.resize((actual_width, actual_height), Image.Resampling.LANCZOS)
+                # 논리적 해상도에 맞춰 리사이징 (스케일 무시)
+                bg_image = bg_image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
                 self.bg_photo = ImageTk.PhotoImage(bg_image)
                 
                 # Create background label that covers entire screen
