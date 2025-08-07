@@ -98,32 +98,75 @@ class TestFTLock:
             # 2. 실제 활성 모니터의 시리얼 번호 가져오기
             active_serial = None
             
+            print(f"\n실제 활성 모니터의 시리얼 번호 수집:")
+            print(f"   Connector: {active_connector}")
+            
             try:
                 import glob
                 edid_pattern = f'/sys/class/drm/card*/card*-{active_connector}*/edid'
+                print(f"   EDID 패턴: {edid_pattern}")
+                
                 edid_files = glob.glob(edid_pattern)
+                print(f"   발견된 EDID 파일들: {edid_files}")
                 
                 if edid_files:
                     edid_file = edid_files[0]
-                    print(f"   EDID 파일: {edid_file}")
+                    print(f"   사용할 EDID 파일: {edid_file}")
                     
-                    if os.path.getsize(edid_file) > 0:
+                    file_size = os.path.getsize(edid_file)
+                    print(f"   EDID 파일 크기: {file_size} bytes")
+                    
+                    if file_size > 0:
                         try:
+                            print("   edid-decode 실행 중...")
                             edid_result = subprocess.run(['edid-decode'], 
                                                        stdin=open(edid_file, 'rb'), 
                                                        capture_output=True, text=True, timeout=10)
                             
+                            print(f"   edid-decode 결과 코드: {edid_result.returncode}")
+                            
                             if edid_result.returncode == 0:
-                                for line in edid_result.stdout.split('\n'):
-                                    if 'Serial Number:' in line:
-                                        active_serial = line.split(':', 1)[1].strip()
-                                        break
-                        except:
-                            print("   edid-decode 실행 실패")
-            except:
-                pass
+                                print("   edid-decode 출력 분석:")
+                                found_serial = False
+                                
+                                for line_num, line in enumerate(edid_result.stdout.split('\n')):
+                                    if 'serial' in line.lower():
+                                        print(f"     라인 {line_num}: {line}")
+                                        
+                                        if 'Serial Number:' in line:
+                                            active_serial = line.split(':', 1)[1].strip()
+                                            found_serial = True
+                                            print(f"     ✓ 시리얼 추출: '{active_serial}'")
+                                            break
+                                
+                                if not found_serial:
+                                    print("     ❌ Serial Number: 라인을 찾을 수 없음")
+                                    print("   전체 edid-decode 출력:")
+                                    for line_num, line in enumerate(edid_result.stdout.split('\n')[:20]):  # 처음 20줄만
+                                        if line.strip():
+                                            print(f"     {line_num:2d}: {line}")
+                            else:
+                                print(f"   ❌ edid-decode 실행 실패: {edid_result.stderr}")
+                        except Exception as e:
+                            print(f"   ❌ edid-decode 실행 중 오류: {e}")
+                    else:
+                        print("   ❌ EDID 파일이 비어있음")
+                else:
+                    print("   ❌ EDID 파일을 찾을 수 없음")
+                    print("   사용 가능한 모든 EDID 파일:")
+                    all_edid = glob.glob('/sys/class/drm/card*/card*/edid')
+                    for edid in all_edid:
+                        size = os.path.getsize(edid) if os.path.exists(edid) else 0
+                        print(f"     {edid} ({size} bytes)")
+                        
+            except Exception as e:
+                print(f"   ❌ 시리얼 수집 중 전체 오류: {e}")
+                import traceback
+                traceback.print_exc()
             
-            print(f"   실제 시리얼: {active_serial}")
+            print(f"\n최종 실제 시리얼: '{active_serial}'")
+            print(f"시리얼 길이: {len(active_serial) if active_serial else 0}")
+            print(f"시리얼 타입: {type(active_serial)}")
             
             if not active_connector:
                 print("❌ 활성 모니터를 찾을 수 없음")
@@ -162,8 +205,21 @@ class TestFTLock:
                                 xml_serial = serial.text if serial is not None else 'N/A'
                                 
                                 print(f"    Connector: {connector_text}")
-                                print(f"    XML Serial: {xml_serial}")
-                                print(f"    실제 Serial: {active_serial}")
+                                print(f"    XML Serial: '{xml_serial}'")
+                                print(f"    XML Serial 길이: {len(xml_serial) if xml_serial != 'N/A' else 0}")
+                                print(f"    실제 Serial: '{active_serial}'")
+                                print(f"    실제 Serial 길이: {len(active_serial) if active_serial else 0}")
+                                
+                                # 시리얼 비교 상세 로그
+                                if active_serial and xml_serial != 'N/A':
+                                    print(f"    시리얼 비교:")
+                                    print(f"      XML:  '{xml_serial}'")
+                                    print(f"      실제: '{active_serial}'")
+                                    print(f"      같음: {xml_serial == active_serial}")
+                                    print(f"      대소문자 무시: {xml_serial.lower() == active_serial.lower()}")
+                                    print(f"      공백 제거 후: '{xml_serial.strip()}' == '{active_serial.strip()}'")
+                                else:
+                                    print(f"    시리얼 비교 불가: active_serial={bool(active_serial)}, xml_serial_valid={xml_serial != 'N/A'}")
                                 
                                 # 시리얼 번호로만 매칭
                                 if (active_serial and xml_serial != 'N/A' and 
