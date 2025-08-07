@@ -95,7 +95,7 @@ class TestFTLock:
             print(f"   Resolution: {active_resolution}")
             print(f"   Position: +{active_position}")
             
-            # 2. 실제 활성 모니터의 시리얼 번호 가져오기
+            # 2. 실제 활성 모니터의 시리얼 번호 가져오기 (cat으로 직접)
             active_serial = None
             
             print(f"\n실제 활성 모니터의 시리얼 번호 수집:")
@@ -124,42 +124,69 @@ class TestFTLock:
                             print(f"   cat으로 읽은 데이터 길이: {len(edid_data)} bytes")
                             
                             if len(edid_data) > 0:
-                                print(f"   처음 32바이트 (hex): {edid_data[:32].hex()}")
+                                print(f"   처음 64바이트 (hex): {edid_data[:64].hex()}")
                                 
-                                # edid-decode로 파싱
+                                # EDID 바이트에서 직접 시리얼 추출 시도
                                 try:
-                                    print("   edid-decode로 파싱...")
-                                    decode_result = subprocess.run(['edid-decode'], 
-                                                                 input=edid_data,
-                                                                 capture_output=True, text=True, timeout=10)
+                                    # EDID 구조에서 시리얼 번호는 보통 12-15 바이트 위치
+                                    if len(edid_data) >= 16:
+                                        # 시리얼 번호 (4바이트, little-endian)
+                                        serial_bytes = edid_data[12:16]
+                                        serial_int = int.from_bytes(serial_bytes, byteorder='little')
+                                        
+                                        print(f"   시리얼 바이트: {serial_bytes.hex()}")
+                                        print(f"   시리얼 정수: {serial_int}")
+                                        
+                                        if serial_int != 0:
+                                            active_serial = str(serial_int)
+                                            print(f"   ✓ 시리얼 추출: '{active_serial}'")
+                                        else:
+                                            print("   시리얼이 0 (빈 값)")
                                     
-                                    print(f"   edid-decode 결과 코드: {decode_result.returncode}")
+                                    # 추가로 다른 위치도 확인 (제조사마다 다를 수 있음)
+                                    if not active_serial and len(edid_data) >= 128:
+                                        print("   다른 위치에서 시리얼 검색...")
+                                        
+                                        # 텍스트 형태 시리얼 검색 (ASCII 영역)
+                                        for i in range(54, 126, 18):  # descriptor blocks
+                                            if i + 18 <= len(edid_data):
+                                                descriptor = edid_data[i:i+18]
+                                                # 첫 5바이트가 0이면 텍스트 descriptor
+                                                if descriptor[:5] == b'\x00\x00\x00\xff\x00':
+                                                    serial_text = descriptor[5:].decode('ascii', errors='ignore').strip('\x00\x0a\x20')
+                                                    if serial_text:
+                                                        active_serial = serial_text
+                                                        print(f"   ✓ 텍스트 시리얼 발견: '{active_serial}'")
+                                                        break
                                     
-                                    if decode_result.returncode == 0:
-                                        print("   edid-decode 출력에서 시리얼 검색:")
+                                    # 여전히 못 찾았으면 전체 데이터에서 ASCII 문자열 검색
+                                    if not active_serial:
+                                        print("   전체 데이터에서 ASCII 문자열 검색...")
+                                        ascii_strings = []
+                                        current_string = ""
                                         
-                                        for line_num, line in enumerate(decode_result.stdout.split('\n')):
-                                            line_lower = line.lower()
-                                            if 'serial' in line_lower:
-                                                print(f"     라인 {line_num}: {line}")
-                                                
-                                                if 'serial number:' in line_lower:
-                                                    active_serial = line.split(':', 1)[1].strip()
-                                                    print(f"     ✓ 시리얼 추출: '{active_serial}'")
-                                                    break
+                                        for byte in edid_data:
+                                            if 32 <= byte <= 126:  # 출력 가능한 ASCII
+                                                current_string += chr(byte)
+                                            else:
+                                                if len(current_string) >= 4:  # 4자 이상인 문자열만
+                                                    ascii_strings.append(current_string)
+                                                current_string = ""
                                         
-                                        # 시리얼을 못 찾았으면 다른 패턴도 시도
-                                        if not active_serial:
-                                            print("   다른 시리얼 패턴 검색:")
-                                            for line_num, line in enumerate(decode_result.stdout.split('\n')):
-                                                if any(keyword in line.lower() for keyword in 
-                                                      ['serial', 'sn:', 's/n:', 'serial id']):
-                                                    print(f"     후보 라인 {line_num}: {line}")
-                                    else:
-                                        print(f"   edid-decode 실패: {decode_result.stderr}")
+                                        if current_string and len(current_string) >= 4:
+                                            ascii_strings.append(current_string)
                                         
+                                        print(f"   발견된 ASCII 문자열들: {ascii_strings}")
+                                        
+                                        # 시리얼 같은 패턴 찾기 (숫자+문자 조합)
+                                        for s in ascii_strings:
+                                            if len(s) >= 6 and any(c.isdigit() for c in s):
+                                                active_serial = s.strip()
+                                                print(f"   ✓ 추정 시리얼: '{active_serial}'")
+                                                break
+                                
                                 except Exception as e:
-                                    print(f"   edid-decode 실행 오류: {e}")
+                                    print(f"   EDID 파싱 오류: {e}")
                             else:
                                 print("   cat으로 읽은 데이터가 비어있음")
                         else:
