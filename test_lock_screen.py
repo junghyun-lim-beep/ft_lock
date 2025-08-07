@@ -93,13 +93,8 @@ class TestFTLock:
         
     def on_unlock_attempt(self, event=None):
         """Handle unlock attempt (test version with PAM support)"""
-        # Entry 위젯인지 Text 위젯인지 확인
-        if isinstance(self.password_entry, tk.Text):
-            password = self.password_entry.get("1.0", tk.END).strip()
-            self.password_entry.delete("1.0", tk.END)
-        else:
-            password = self.password_entry.get()
-            self.password_entry.delete(0, tk.END)
+        password = self.password_entry.get()
+        self.password_entry.delete(0, tk.END)
         
         if not password:
             self.status_label.config(text="Please enter password", foreground="orange")
@@ -249,254 +244,11 @@ class TestFTLock:
             # 1초마다 업데이트
             self.root.after(1000, self.update_time)
             
-    def _print_entry_info(self):
-        """Entry 위젯 상태 정보 출력"""
-        try:
-            if hasattr(self, 'password_entry'):
-                entry = self.password_entry
-                print("=== ENTRY WIDGET STATUS ===")
-                print(f"Widget exists: {entry.winfo_exists()}")
-                print(f"Widget mapped: {entry.winfo_ismapped()}")
-                print(f"Widget viewable: {entry.winfo_viewable()}")
-                print(f"Widget position: {entry.winfo_x()}, {entry.winfo_y()}")
-                print(f"Widget size: {entry.winfo_width()}x{entry.winfo_height()}")
-                print(f"Widget requested size: {entry.winfo_reqwidth()}x{entry.winfo_reqheight()}")
-                print(f"Widget manager: {entry.winfo_manager()}")
-                print(f"Widget class: {entry.winfo_class()}")
-                print(f"Widget parent: {entry.winfo_parent()}")
-                
-                # 부모 컨테이너 정보도 출력
-                parent = entry.master
-                if parent:
-                    print(f"Parent mapped: {parent.winfo_ismapped()}")
-                    print(f"Parent viewable: {parent.winfo_viewable()}")
-                    print(f"Parent size: {parent.winfo_width()}x{parent.winfo_height()}")
-                
-                # 스케일링 정보
-                current_scale = self.root.tk.call('tk', 'scaling')
-                print(f"Current tkinter scaling: {current_scale}")
-                
-                print("=== END ENTRY STATUS ===")
-                
-                # 매핑되지 않은 경우 강제 매핑 시도
-                if not entry.winfo_ismapped():
-                    print("*** WIDGET NOT MAPPED - ATTEMPTING FORCED MAPPING ***")
-                    try:
-                        # 다양한 매핑 시도
-                        entry.update()
-                        entry.update_idletasks()
-                        entry.tkraise()
-                        entry.lift()
-                        
-                        # place 매니저 정보 확인 및 재설정
-                        place_info = entry.place_info()
-                        print(f"Place info: {place_info}")
-                        
-                        if place_info:
-                            # place 설정 재적용
-                            entry.place_forget()
-                            entry.place(relx=0.5, rely=0.6, anchor='center', 
-                                       width=280, height=40)
-                            print("Place settings reapplied")
-                            
-                        # 최종 상태 확인
-                        self.root.after(100, lambda: print(f"After forced mapping - mapped: {entry.winfo_ismapped()}, viewable: {entry.winfo_viewable()}"))
-                        
-                    except Exception as map_e:
-                        print(f"Forced mapping failed: {map_e}")
-                        
-        except Exception as e:
-            print(f"Entry info failed: {e}")
-            
-    def _try_alternative_entry_placement(self):
-        """Entry가 보이지 않을 때 대안 배치 방법 시도"""
-        if not hasattr(self, 'password_entry') or not self.password_entry:
-            return
-            
-        try:
-            entry = self.password_entry
-            print("=== TRYING ALTERNATIVE ENTRY PLACEMENT ===")
-            
-            # 현재 상태 확인
-            is_mapped = entry.winfo_ismapped()
-            is_viewable = entry.winfo_viewable()
-            print(f"Current state - mapped: {is_mapped}, viewable: {is_viewable}")
-            
-            if not is_mapped or not is_viewable:
-                print("Entry not visible - trying alternative methods...")
-                
-                # 방법 1: 새로운 Entry를 root에 직접 생성
-                print("Method 1: Creating new Entry directly on root")
-                try:
-                    # 기존 Entry 제거
-                    entry.destroy()
-                    
-                    # 스케일링에 따른 크기 조정
-                    current_scale = self.root.tk.call('tk', 'scaling')
-                    if current_scale > 1.5:  # 200% 스케일
-                        alt_font_size = 14
-                        alt_width = 250
-                        alt_height = 40
-                    else:  # 100% 스케일
-                        alt_font_size = 18
-                        alt_width = 300
-                        alt_height = 50
-                    
-                    # 새 Entry를 root에 직접 생성
-                    self.password_entry = tk.Entry(self.root, 
-                                                  show='•', 
-                                                  font=("Arial", alt_font_size),
-                                                  width=15,
-                                                  bg='#2c3e50',
-                                                  fg='white',
-                                                  relief='solid',
-                                                  bd=2,
-                                                  highlightthickness=2,
-                                                  highlightcolor='#3498db',
-                                                  insertbackground='white')
-                    
-                    # 화면 중앙에 절대 위치 배치 (스케일링 고려)
-                    screen_width = self.root.winfo_screenwidth()
-                    screen_height = self.root.winfo_screenheight()
-                    x = screen_width // 2 - (alt_width // 2)  # 정확한 중앙
-                    y = screen_height // 2 + 50   # 중앙보다 약간 아래
-                    
-                    self.password_entry.place(x=x, y=y, width=alt_width, height=alt_height)
-                    
-                    # 이벤트 바인딩 재설정
-                    self.password_entry.bind('<Return>', self.on_unlock_attempt)
-                    self.password_entry.bind('<Key>', lambda e: None if self.block_all_keys(e) != "break" else "break")
-                    
-                    # 강제 업데이트
-                    self.root.update_idletasks()
-                    self.root.update()
-                    
-                    # 포커스 설정
-                    self.password_entry.focus_set()
-                    self.password_entry.tkraise()
-                    
-                    print(f"New Entry created on root at position ({x}, {y})")
-                    
-                    # 상태 재확인
-                    self.root.after(200, lambda: print(f"Alternative method result - mapped: {self.password_entry.winfo_ismapped()}, viewable: {self.password_entry.winfo_viewable()}"))
-                    
-                except Exception as alt_e:
-                    print(f"Alternative method 1 failed: {alt_e}")
-                    
-                    # 방법 2: 간단한 Text 위젯으로 대체
-                    print("Method 2: Trying Text widget as fallback")
-                    try:
-                        # Text 위젯도 스케일링 고려
-                        current_scale = self.root.tk.call('tk', 'scaling')
-                        if current_scale > 1.5:  # 200% 스케일
-                            text_font_size = 14
-                            text_width = 250
-                            text_height = 40
-                        else:  # 100% 스케일
-                            text_font_size = 18
-                            text_width = 300
-                            text_height = 50
-                        
-                        self.password_entry = tk.Text(self.root, 
-                                                     font=("Arial", text_font_size),
-                                                     height=1,
-                                                     width=15,
-                                                     bg='#2c3e50',
-                                                     fg='white',
-                                                     relief='solid',
-                                                     bd=2,
-                                                     highlightthickness=2,
-                                                     highlightcolor='#3498db',
-                                                     insertbackground='white')
-                        
-                        # 화면 중앙 재계산
-                        screen_width = self.root.winfo_screenwidth()
-                        screen_height = self.root.winfo_screenheight()
-                        x = screen_width // 2 - (text_width // 2)
-                        y = screen_height // 2 + 50
-                        
-                        self.password_entry.place(x=x, y=y, width=text_width, height=text_height)
-                        self.password_entry.focus_set()
-                        
-                        print("Text widget fallback created")
-                        
-                    except Exception as text_e:
-                        print(f"Text widget fallback failed: {text_e}")
-            else:
-                print("Entry is visible - no alternative needed")
-                
-        except Exception as e:
-            print(f"Alternative placement failed: {e}")
-            
     def create_lock_screen(self):
         """Create the lock screen GUI with full screen background"""
         self.root = tk.Tk()
         self.root.title("FT Lock - Test Mode")
         self.root.configure(bg='black')
-        
-        # 스케일 조회 및 강제 적용 테스트
-        try:
-            print("=== SCALE DETECTION TEST ===")
-            
-            # 1. 현재 tkinter 스케일링 값 조회
-            current_scale = self.root.tk.call('tk', 'scaling')
-            print(f"Current tkinter scaling: {current_scale}")
-            
-            # 2. 화면 정보 조회
-            screen_width = self.root.winfo_screenwidth()
-            screen_height = self.root.winfo_screenheight()
-            screen_width_mm = self.root.winfo_screenmmwidth()
-            screen_height_mm = self.root.winfo_screenmmheight()
-            print(f"Screen: {screen_width}x{screen_height}px, {screen_width_mm}x{screen_height_mm}mm")
-            
-            # 3. DPI 계산
-            dpi_x = screen_width / (screen_width_mm / 25.4)
-            dpi_y = screen_height / (screen_height_mm / 25.4)
-            print(f"Calculated DPI: {dpi_x:.1f}x{dpi_y:.1f}")
-            
-            # 4. tkinter DPI 조회
-            tk_dpi = self.root.winfo_fpixels('1i')
-            print(f"Tkinter DPI: {tk_dpi:.1f}")
-            
-            print("=== SCALE FORCE TEST ===")
-            
-            # 5. 강제로 다양한 스케일 값 적용해보기
-            test_scales = [0.5, 1.0, 1.5, 2.0]
-            for scale in test_scales:
-                try:
-                    self.root.tk.call('tk', 'scaling', scale)
-                    new_scale = self.root.tk.call('tk', 'scaling')
-                    print(f"Set scale {scale} -> Got scale {new_scale}")
-                except Exception as e:
-                    print(f"Failed to set scale {scale}: {e}")
-            
-            # 6. 1.33 스케일링 문제 해결 - 강제로 1.0 고정
-            if current_scale > 1.2:  # 1.33이나 다른 이상한 값들
-                print(f"Problematic scaling detected: {current_scale}")
-                print("Forcing scaling to 1.0 to fix UI rendering...")
-                
-                # 여러 번 시도해서 확실히 1.0으로 설정
-                for attempt in range(3):
-                    self.root.tk.call('tk', 'scaling', 1.0)
-                    new_scale = self.root.tk.call('tk', 'scaling')
-                    print(f"Attempt {attempt+1}: Set 1.0 -> Got {new_scale}")
-                    if abs(new_scale - 1.0) < 0.01:  # 거의 1.0이면 성공
-                        break
-                
-                final_scale = self.root.tk.call('tk', 'scaling')
-                print(f"Final scaling locked to: {final_scale}")
-                
-                if abs(final_scale - 1.0) < 0.01:
-                    print("✅ Scaling fix successful - UI should render properly now")
-                else:
-                    print("❌ Scaling fix failed - UI may still have issues")
-            else:
-                print("Normal scaling detected - no fix needed")
-            
-            print("=== SCALE TEST COMPLETE ===")
-            
-        except Exception as e:
-            print(f"Scale test failed: {e}")
         
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
@@ -564,58 +316,14 @@ class TestFTLock:
                                font=("Arial", 14), bg='black', fg='white')
         prompt_label.pack(pady=(0, 8))
         
-        # Entry 위젯을 pack으로 정상적으로 배치 (다른 요소들과 순서 맞춤)
-        print("Creating Entry widget with proper layout order...")
+        # Password entry with modern styling
+        entry_frame = tk.Frame(input_container, bg='black')
+        entry_frame.pack(pady=(0, 15))
         
-        # 스케일링 정보 확인
-        current_scale = self.root.tk.call('tk', 'scaling')
-        print(f"Current scaling when creating Entry: {current_scale}")
-        
-        # 스케일링에 따른 폰트 크기 조정
-        if current_scale > 1.5:  # 200% 스케일
-            entry_font_size = 14
-            entry_width = 18
-        else:  # 100% 스케일
-            entry_font_size = 16
-            entry_width = 20
-        
-        print(f"Adjusted font size: {entry_font_size}, width: {entry_width}")
-        
-        self.password_entry = tk.Entry(input_container, 
-                                      show='•', 
-                                      font=("Arial", entry_font_size),
-                                      width=entry_width,
-                                      bg='#2c3e50',              # 어두운 회색 배경
-                                      fg='white',                # 흰색 글자
-                                      relief='solid',            # 실선 테두리
-                                      bd=2,                      # 테두리 두께
-                                      highlightthickness=2,      # 포커스 테두리
-                                      highlightcolor='#3498db',  # 파란색 포커스
-                                      insertbackground='white')  # 흰색 커서
-        
-        # pack으로 정상적인 순서로 배치 (다른 요소들을 덮지 않도록)
-        self.password_entry.pack(pady=(10, 15))
-        
-        # 위젯 업데이트 및 정상 배치 확인
-        print("Updating widgets with proper layout...")
-        self.root.update_idletasks()
-        self.root.update()
-        
-        print("Entry widget configured with ADAPTIVE STYLING:")
-        print(f"- Font: Arial {entry_font_size}")
-        print(f"- Width: {entry_width}")
-        print(f"- Background: #2c3e50 (dark gray)")
-        print(f"- Foreground: white") 
-        print(f"- Border: solid 2px")
-        print(f"- Highlight: #3498db (blue)")
-        print(f"- Layout: pack() for proper ordering")
-        
-        # Entry 위젯 정보 여러 번 체크 및 대안 방법 시도
-        self.root.after(50, self._print_entry_info)    # 50ms 후
-        self.root.after(200, self._print_entry_info)   # 200ms 후  
-        self.root.after(500, self._print_entry_info)   # 500ms 후
-        self.root.after(1000, self._try_alternative_entry_placement)  # 1초 후 대안 시도
-        
+        self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 14),
+                                      width=25, bg='#2a2a3e', fg='white',
+                                      relief='flat', bd=0, insertbackground='white')
+        self.password_entry.pack(ipady=8, ipadx=10)
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
