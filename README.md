@@ -156,7 +156,7 @@ Edit `ft_lock.py` to customize:
 
 ## License
 
-Open source - modify as needed for your environment.
+This software is provided under an open license. You are free to modify and use it for your environment as long as you credit the original author.
 
 ## Contributing
 
