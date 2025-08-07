@@ -342,15 +342,16 @@ class TestFTLock:
         prompt_label.pack(pady=(0, 8))
         
         # Password entry with modern styling
-        entry_frame = tk.Frame(input_container, bg='black')
+        entry_frame = tk.Frame(input_container, bg='black', highlightbackground='green', highlightthickness=2)
         entry_frame.pack(pady=(0, 15))
+        print("Entry frame added")
         
-        self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 14),
-                                      width=25, bg='#2a2a3e', fg='white',
-                                      relief='flat', bd=0, insertbackground='white',
-                                      highlightbackground='cyan', highlightthickness=2)
-        self.password_entry.pack(ipady=8, ipadx=10)
-        print("Password entry added")
+        self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 16),
+                                      width=20, bg='white', fg='black',  # 흰 배경, 검은 글자로 변경
+                                      relief='solid', bd=2, insertbackground='black',
+                                      highlightbackground='cyan', highlightthickness=3)
+        self.password_entry.pack(ipady=10, ipadx=15)
+        print("Password entry added with white background")
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
