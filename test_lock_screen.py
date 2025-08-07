@@ -78,41 +78,75 @@ class TestFTLock:
                             monitors_info.append((i+1, scale_val, is_primary))
                             print(f"  Monitor {i+1}: scale={scale_val}, primary={is_primary}")
                     
-                    # 스케일 선택 로직: gsettings로 현재 설정과 비교
-                    print("\n  gsettings 현재 설정 확인...")
+                    # 스케일 선택 로직: xrandr primary 모니터와 정확히 매칭
+                    print("\n  xrandr primary 모니터와 monitors.xml 매칭...")
                     try:
                         import subprocess
-                        result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'text-scaling-factor'], 
-                                              capture_output=True, text=True, timeout=5)
-                        current_text_scale = 1.0
-                        if result.returncode == 0:
-                            current_text_scale = float(result.stdout.strip())
-                            print(f"  현재 text-scaling-factor: {current_text_scale}")
                         
-                        # 현재 text-scaling-factor와 가장 가까운 primary 모니터 찾기
-                        best_match = None
-                        min_diff = float('inf')
+                        # 현재 primary 모니터 이름 찾기
+                        xrandr_result = subprocess.run(['xrandr'], capture_output=True, text=True, timeout=5)
+                        primary_monitor_name = None
                         
-                        for monitor_num, scale_val, is_primary in monitors_info:
-                            if is_primary:
-                                diff = abs(scale_val - current_text_scale)
-                                print(f"  Monitor {monitor_num} 차이: |{scale_val} - {current_text_scale}| = {diff}")
-                                if diff < min_diff:
-                                    min_diff = diff
-                                    best_match = (monitor_num, scale_val)
+                        if xrandr_result.returncode == 0:
+                            print("  xrandr 출력 분석:")
+                            for line in xrandr_result.stdout.split('\n'):
+                                if 'connected' in line:
+                                    print(f"    연결된 모니터: {line}")
+                                    if 'connected primary' in line:
+                                        primary_monitor_name = line.split()[0]
+                                        print(f"    ✓ Primary 모니터: {primary_monitor_name}")
                         
-                        if best_match:
-                            actual_scale = best_match[1]
-                            print(f"  ✓ 현재 설정과 가장 가까운 스케일: {actual_scale} (Monitor {best_match[0]})")
+                        if primary_monitor_name:
+                            print(f"\n  monitors.xml에서 {primary_monitor_name} 모니터 찾기...")
+                            
+                            # monitors.xml에서 해당 모니터의 스케일 찾기
+                            for i, lm in enumerate(active_config.findall('logicalmonitor')):
+                                print(f"\n    LogicalMonitor {i+1} 분석:")
+                                
+                                # 모니터 connector 이름 찾기
+                                monitor_connector = None
+                                for monitor in lm.findall('monitor'):
+                                    monitorspec = monitor.find('monitorspec')
+                                    if monitorspec is not None:
+                                        connector = monitorspec.find('connector')
+                                        if connector is not None:
+                                            monitor_connector = connector.text
+                                            print(f"      connector: {monitor_connector}")
+                                            break
+                                
+                                # 스케일과 primary 상태 확인
+                                scale_elem = lm.find('scale')
+                                primary_elem = lm.find('primary')
+                                if scale_elem is not None:
+                                    scale_val = float(scale_elem.text)
+                                    is_primary = primary_elem is not None and primary_elem.text == 'yes'
+                                    print(f"      scale: {scale_val}")
+                                    print(f"      primary: {is_primary}")
+                                    
+                                    # connector 이름이 일치하는지 확인
+                                    if monitor_connector == primary_monitor_name:
+                                        actual_scale = scale_val
+                                        print(f"      🎯 매칭 성공! {primary_monitor_name}의 스케일: {actual_scale}")
+                                        break
+                                    else:
+                                        print(f"      ❌ 매칭 실패: {monitor_connector} ≠ {primary_monitor_name}")
+                        
+                        # 매칭 실패시에만 fallback
+                        if actual_scale == 1.0:
+                            print("\n  ⚠️ 매칭 실패! 아무거나 사용하지 말고 오류 리포트:")
+                            print(f"    찾던 모니터: {primary_monitor_name}")
+                            print("    monitors.xml의 모든 connector들:")
+                            for i, lm in enumerate(active_config.findall('logicalmonitor')):
+                                for monitor in lm.findall('monitor'):
+                                    monitorspec = monitor.find('monitorspec')
+                                    if monitorspec is not None:
+                                        connector = monitorspec.find('connector')
+                                        if connector is not None:
+                                            print(f"      Monitor {i+1}: {connector.text}")
                         
                     except Exception as e:
-                        print(f"  gsettings 확인 실패: {e}")
-                        # fallback: 첫 번째 primary 사용
-                        for monitor_num, scale_val, is_primary in monitors_info:
-                            if is_primary and actual_scale == 1.0:
-                                actual_scale = scale_val
-                                print(f"  → Fallback: 첫 번째 Primary 사용: {actual_scale}")
-                                break
+                        print(f"  매칭 과정 오류: {e}")
+                        actual_scale = 1.0
                 
             else:
                 print("monitors.xml 없음")
