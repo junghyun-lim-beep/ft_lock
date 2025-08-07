@@ -337,67 +337,124 @@ class TestFTLock:
         # Password entry with scaling-aware styling
         print("Creating password entry with scaling detection...")
         
-        # 스케일링 감지
+        # 다양한 방법으로 스케일링 감지 (우분투 대응)
+        print("=== SCALING DETECTION ===")
+        
+        # 방법 1: tkinter 스케일링
         try:
-            current_scale = self.root.tk.call('tk', 'scaling')
-            print(f"Detected scaling: {current_scale}")
+            tk_scale = self.root.tk.call('tk', 'scaling')
+            print(f"Tkinter scaling: {tk_scale}")
         except:
-            current_scale = 1.0
-            print("Could not detect scaling, using 1.0")
+            tk_scale = 1.0
+            print("Tkinter scaling: failed, using 1.0")
+        
+        # 방법 2: DPI 기반 계산
+        try:
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight() 
+            screen_width_mm = self.root.winfo_screenmmwidth()
+            screen_height_mm = self.root.winfo_screenmmheight()
+            
+            dpi_x = screen_width / (screen_width_mm / 25.4) if screen_width_mm > 0 else 96
+            dpi_y = screen_height / (screen_height_mm / 25.4) if screen_height_mm > 0 else 96
+            dpi_scale = max(dpi_x, dpi_y) / 96.0
+            
+            print(f"Screen: {screen_width}x{screen_height}px, {screen_width_mm}x{screen_height_mm}mm")
+            print(f"DPI: {dpi_x:.1f}x{dpi_y:.1f}, DPI scale: {dpi_scale:.2f}")
+        except:
+            dpi_scale = 1.0
+            print("DPI detection failed, using 1.0")
+        
+        # 방법 3: 환경 변수 확인 (우분투/GNOME)
+        import os
+        env_scale = 1.0
+        try:
+            # GDK_SCALE 환경 변수
+            if 'GDK_SCALE' in os.environ:
+                env_scale = float(os.environ['GDK_SCALE'])
+                print(f"GDK_SCALE: {env_scale}")
+            
+            # QT_SCALE_FACTOR 환경 변수
+            elif 'QT_SCALE_FACTOR' in os.environ:
+                env_scale = float(os.environ['QT_SCALE_FACTOR'])
+                print(f"QT_SCALE_FACTOR: {env_scale}")
+            else:
+                print("No scaling environment variables found")
+        except:
+            print("Environment variable detection failed")
+        
+        # 최종 스케일 결정 (가장 높은 값 사용)
+        detected_scales = [tk_scale, dpi_scale, env_scale]
+        current_scale = max(detected_scales)
+        
+        print(f"All detected scales: {detected_scales}")
+        print(f"Final scale decision: {current_scale}")
+        print("=== SCALING DETECTION END ===")
+        
+        # 1.25 이상이면 고해상도로 판단 (우분투에서 1.33333은 실제로는 200%일 가능성)
+        is_high_dpi = current_scale >= 1.25
+        print(f"High DPI mode: {is_high_dpi} (threshold: 1.25)")
         
         entry_frame = tk.Frame(input_container, bg='black')
         entry_frame.pack(pady=(0, 15))
         
-        # 스케일링에 따른 설정 조정
-        if current_scale > 1.5:  # 200% 스케일
-            print("Using 200% scale settings")
+        # 스케일링에 따른 설정 조정 (우분투 1.33333 대응)
+        if is_high_dpi:  # 1.25 이상 (고해상도/스케일링)
+            print("Using HIGH DPI settings (for 150%+ scaling)")
             font_size = 12
-            entry_width = 20
-            entry_height = 30
-            padding_y = 6
-            padding_x = 8
-        else:  # 100% 스케일
-            print("Using 100% scale settings")
+            entry_width = 18
+            padding_y = 5
+            padding_x = 6
+            # 더 강한 가시성을 위한 설정
+            bg_color = '#4a4a6e'  # 더 밝은 배경
+            relief_style = 'solid'
+            border_width = 2
+        else:  # 일반 해상도
+            print("Using NORMAL DPI settings (100% scaling)")
             font_size = 14
             entry_width = 25
-            entry_height = 35
             padding_y = 8
             padding_x = 10
+            bg_color = '#2a2a3e'  # 기본 배경
+            relief_style = 'flat'
+            border_width = 0
         
         self.password_entry = tk.Entry(entry_frame, 
                                       show='•', 
                                       font=("Arial", font_size),
                                       width=entry_width, 
-                                      bg='#2a2a3e', 
+                                      bg=bg_color, 
                                       fg='white',
-                                      relief='flat', 
-                                      bd=0, 
+                                      relief=relief_style, 
+                                      bd=border_width, 
                                       insertbackground='white')
         self.password_entry.pack(ipady=padding_y, ipadx=padding_x)
         
-        print(f"Entry created with font={font_size}, width={entry_width}, padding=({padding_x},{padding_y})")
+        print(f"Entry created: font={font_size}, width={entry_width}, bg={bg_color}")
+        print(f"Entry styling: relief={relief_style}, bd={border_width}, padding=({padding_x},{padding_y})")
         
         # 강제 업데이트로 확실한 렌더링
         self.root.update_idletasks()
         entry_frame.update_idletasks()
         self.password_entry.update_idletasks()
         
-        # 200% 스케일에서 추가 보장 조치
-        if current_scale > 1.5:
-            print("Applying additional measures for 200% scale...")
-            # 위젯 크기 강제 설정
-            self.password_entry.configure(width=entry_width)
-            # 테두리 추가로 가시성 향상
-            self.password_entry.configure(relief='solid', bd=1)
-            # 배경색을 더 밝게
-            self.password_entry.configure(bg='#3a3a4e')
+        # 고해상도에서 추가 보장 조치
+        if is_high_dpi:
+            print("Applying additional HIGH DPI measures...")
             
-            # 강제 업데이트 재시도
+            # 강제 업데이트
             self.root.update()
             entry_frame.update()
             self.password_entry.update()
             
-            print("200% scale adjustments applied")
+            # 추가 가시성 향상 시도
+            try:
+                self.password_entry.configure(highlightthickness=1, highlightcolor='white')
+                print("Added highlight for better visibility")
+            except:
+                pass
+            
+            print("HIGH DPI adjustments applied")
         
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
