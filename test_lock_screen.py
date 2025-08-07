@@ -113,56 +113,65 @@ class TestFTLock:
                     edid_file = edid_files[0]
                     print(f"   사용할 EDID 파일: {edid_file}")
                     
-                    file_size = os.path.getsize(edid_file)
-                    print(f"   EDID 파일 크기: {file_size} bytes")
-                    
-                    if file_size > 0:
-                        try:
-                            print("   edid-decode 실행 중...")
-                            edid_result = subprocess.run(['edid-decode'], 
-                                                       stdin=open(edid_file, 'rb'), 
-                                                       capture_output=True, text=True, timeout=10)
+                    try:
+                        # cat 명령어로 EDID 읽기
+                        print("   cat 명령어로 EDID 읽기...")
+                        cat_result = subprocess.run(['cat', edid_file], 
+                                                  capture_output=True, timeout=5)
+                        
+                        if cat_result.returncode == 0:
+                            edid_data = cat_result.stdout
+                            print(f"   cat으로 읽은 데이터 길이: {len(edid_data)} bytes")
                             
-                            print(f"   edid-decode 결과 코드: {edid_result.returncode}")
-                            
-                            if edid_result.returncode == 0:
-                                print("   edid-decode 출력 분석:")
-                                found_serial = False
+                            if len(edid_data) > 0:
+                                print(f"   처음 32바이트 (hex): {edid_data[:32].hex()}")
                                 
-                                for line_num, line in enumerate(edid_result.stdout.split('\n')):
-                                    if 'serial' in line.lower():
-                                        print(f"     라인 {line_num}: {line}")
+                                # edid-decode로 파싱
+                                try:
+                                    print("   edid-decode로 파싱...")
+                                    decode_result = subprocess.run(['edid-decode'], 
+                                                                 input=edid_data,
+                                                                 capture_output=True, text=True, timeout=10)
+                                    
+                                    print(f"   edid-decode 결과 코드: {decode_result.returncode}")
+                                    
+                                    if decode_result.returncode == 0:
+                                        print("   edid-decode 출력에서 시리얼 검색:")
                                         
-                                        if 'Serial Number:' in line:
-                                            active_serial = line.split(':', 1)[1].strip()
-                                            found_serial = True
-                                            print(f"     ✓ 시리얼 추출: '{active_serial}'")
-                                            break
-                                
-                                if not found_serial:
-                                    print("     ❌ Serial Number: 라인을 찾을 수 없음")
-                                    print("   전체 edid-decode 출력:")
-                                    for line_num, line in enumerate(edid_result.stdout.split('\n')[:20]):  # 처음 20줄만
-                                        if line.strip():
-                                            print(f"     {line_num:2d}: {line}")
+                                        for line_num, line in enumerate(decode_result.stdout.split('\n')):
+                                            line_lower = line.lower()
+                                            if 'serial' in line_lower:
+                                                print(f"     라인 {line_num}: {line}")
+                                                
+                                                if 'serial number:' in line_lower:
+                                                    active_serial = line.split(':', 1)[1].strip()
+                                                    print(f"     ✓ 시리얼 추출: '{active_serial}'")
+                                                    break
+                                        
+                                        # 시리얼을 못 찾았으면 다른 패턴도 시도
+                                        if not active_serial:
+                                            print("   다른 시리얼 패턴 검색:")
+                                            for line_num, line in enumerate(decode_result.stdout.split('\n')):
+                                                if any(keyword in line.lower() for keyword in 
+                                                      ['serial', 'sn:', 's/n:', 'serial id']):
+                                                    print(f"     후보 라인 {line_num}: {line}")
+                                    else:
+                                        print(f"   edid-decode 실패: {decode_result.stderr}")
+                                        
+                                except Exception as e:
+                                    print(f"   edid-decode 실행 오류: {e}")
                             else:
-                                print(f"   ❌ edid-decode 실행 실패: {edid_result.stderr}")
-                        except Exception as e:
-                            print(f"   ❌ edid-decode 실행 중 오류: {e}")
-                    else:
-                        print("   ❌ EDID 파일이 비어있음")
+                                print("   cat으로 읽은 데이터가 비어있음")
+                        else:
+                            print(f"   cat 명령어 실패: {cat_result.stderr}")
+                            
+                    except Exception as e:
+                        print(f"   cat 실행 오류: {e}")
                 else:
                     print("   ❌ EDID 파일을 찾을 수 없음")
-                    print("   사용 가능한 모든 EDID 파일:")
-                    all_edid = glob.glob('/sys/class/drm/card*/card*/edid')
-                    for edid in all_edid:
-                        size = os.path.getsize(edid) if os.path.exists(edid) else 0
-                        print(f"     {edid} ({size} bytes)")
                         
             except Exception as e:
                 print(f"   ❌ 시리얼 수집 중 전체 오류: {e}")
-                import traceback
-                traceback.print_exc()
             
             print(f"\n최종 실제 시리얼: '{active_serial}'")
             print(f"시리얼 길이: {len(active_serial) if active_serial else 0}")
