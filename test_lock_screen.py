@@ -244,6 +244,22 @@ class TestFTLock:
             # 1초마다 업데이트
             self.root.after(1000, self.update_time)
             
+    def _print_entry_info(self):
+        """Entry 위젯 상태 정보 출력"""
+        try:
+            if hasattr(self, 'password_entry'):
+                entry = self.password_entry
+                print("=== ENTRY WIDGET STATUS ===")
+                print(f"Widget exists: {entry.winfo_exists()}")
+                print(f"Widget mapped: {entry.winfo_ismapped()}")
+                print(f"Widget viewable: {entry.winfo_viewable()}")
+                print(f"Widget position: {entry.winfo_x()}, {entry.winfo_y()}")
+                print(f"Widget size: {entry.winfo_width()}x{entry.winfo_height()}")
+                print(f"Widget requested size: {entry.winfo_reqwidth()}x{entry.winfo_reqheight()}")
+                print("=== END ENTRY STATUS ===")
+        except Exception as e:
+            print(f"Entry info failed: {e}")
+            
     def create_lock_screen(self):
         """Create the lock screen GUI with full screen background"""
         self.root = tk.Tk()
@@ -384,10 +400,28 @@ class TestFTLock:
         entry_frame = tk.Frame(input_container, bg='black')
         entry_frame.pack(pady=(0, 15))
         
-        self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 14),
-                                      width=25, bg='#2a2a3e', fg='white',
-                                      relief='flat', bd=0, insertbackground='white')
-        self.password_entry.pack(ipady=8, ipadx=10)
+        # 매우 눈에 띄는 Entry 테스트 - 200% 스케일에서 보이는지 확인
+        self.password_entry = tk.Entry(entry_frame, 
+                                      show='•', 
+                                      font=("Arial", 20),        # 큰 폰트
+                                      width=15, 
+                                      bg='red',                  # 빨간 배경
+                                      fg='yellow',               # 노란 글자
+                                      relief='solid',            # 실선 테두리
+                                      bd=5,                      # 두꺼운 테두리
+                                      insertbackground='white')  # 흰색 커서
+        self.password_entry.pack(ipady=15, ipadx=20)             # 큰 패딩
+        
+        print("Entry widget configured with HIGH VISIBILITY settings:")
+        print(f"- Font: Arial 20")
+        print(f"- Background: red")
+        print(f"- Foreground: yellow") 
+        print(f"- Border: solid 5px")
+        print(f"- Size: width=15, padding=15x20")
+        
+        # Entry 위젯 정보 출력
+        self.root.after(100, self._print_entry_info)
+        
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
