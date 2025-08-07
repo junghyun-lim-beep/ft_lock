@@ -366,7 +366,6 @@ class TestFTLock:
             print("DPI detection failed, using 1.0")
         
         # 방법 3: 환경 변수 확인 (우분투/GNOME)
-        import os
         env_scale = 1.0
         try:
             # GDK_SCALE 환경 변수
