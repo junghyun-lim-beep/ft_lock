@@ -12,6 +12,7 @@ import getpass
 from datetime import datetime
 import threading
 import time
+import xml.etree.ElementTree as ET
 
 # Try to import PAM, but make it optional for testing
 try:
@@ -35,6 +36,67 @@ class TestFTLock:
         self.locked = False
         self.lockout_active = False  # 5분 잠금 상태 추가
         self.lockout_start_time = None  # 잠금 시작 시간
+        
+    def get_display_scale(self):
+        """여러 방법으로 디스플레이 스케일 값 가져오기 (강제로 1.0 반환)"""
+        actual_scale = 1.0
+        
+        # 방법 1: monitors.xml 파일 확인
+        try:
+            monitors_file = os.path.expanduser("~/.config/monitors.xml")
+            
+            if os.path.exists(monitors_file) and os.access(monitors_file, os.R_OK):
+                tree = ET.parse(monitors_file)
+                root = tree.getroot()
+                
+                for logicalmonitor in root.findall('.//logicalmonitor'):
+                    scale_element = logicalmonitor.find('scale')
+                    if scale_element is not None:
+                        actual_scale = float(scale_element.text)
+                        print(f"✓ Scale from monitors.xml: {actual_scale}")
+                        break
+            else:
+                print("⚠ monitors.xml not accessible, trying alternative methods...")
+                
+        except Exception as e:
+            print(f"⚠ Error reading monitors.xml: {e}")
+        
+        # 방법 2: gsettings로 fallback
+        if actual_scale == 1.0:
+            try:
+                import subprocess
+                result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'text-scaling-factor'], 
+                                      capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    text_scale = float(result.stdout.strip())
+                    if text_scale != 1.0:
+                        actual_scale = text_scale
+                        print(f"✓ Scale from gsettings text-scaling-factor: {actual_scale}")
+            except Exception as e:
+                print(f"⚠ gsettings method failed: {e}")
+        
+        # 방법 3: 해상도 비교로 추정
+        if actual_scale == 1.0:
+            try:
+                import subprocess
+                result = subprocess.run(['xrandr'], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    # 4K 해상도면 보통 2.0 스케일 사용
+                    if '3840x2160' in result.stdout:
+                        # tkinter로 논리적 해상도 확인
+                        temp_root = tk.Tk()
+                        logical_width = temp_root.winfo_screenwidth()
+                        temp_root.destroy()
+                        
+                        if logical_width == 1920:  # 3840을 1920으로 스케일링
+                            actual_scale = 2.0
+                            print(f"✓ Scale estimated from resolution comparison: {actual_scale}")
+            except Exception as e:
+                print(f"⚠ Resolution comparison failed: {e}")
+        
+        print(f"Final detected scale: {actual_scale}")
+        print(f"🔒 Forcing scale to: 1.0 (instead of {actual_scale})")
+        return 1.0  # 강제로 1.0 반환
         
     def authenticate_user(self, username, password):
         """Authenticate user using PAM (if available)"""
@@ -250,6 +312,9 @@ class TestFTLock:
         self.root.title("FT Lock - Test Mode")
         self.root.configure(bg='black')
         
+        # 디스플레이 스케일 가져오기 (강제로 1.0)
+        display_scale = self.get_display_scale()
+        
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
         self.root.attributes('-topmost', True)
@@ -257,6 +322,14 @@ class TestFTLock:
         # Get screen dimensions BEFORE overrideredirect
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
+        
+        # 스케일 적용된 실제 크기 계산
+        actual_width = int(screen_width * display_scale)
+        actual_height = int(screen_height * display_scale)
+        
+        print(f"Screen dimensions: {screen_width}x{screen_height}")
+        print(f"Scale factor: {display_scale}")
+        print(f"Scaled dimensions: {actual_width}x{actual_height}")
         
         # Now remove window decorations
         self.root.overrideredirect(True)
@@ -276,9 +349,10 @@ class TestFTLock:
         try:
             bg_path = os.path.join(os.path.dirname(__file__), 'images', 'lock_background.png')
             if os.path.exists(bg_path):
-                # Load and resize background image to fit screen
+                # Load and resize background image with scale consideration
                 bg_image = Image.open(bg_path)
-                bg_image = bg_image.resize((screen_width, screen_height), Image.Resampling.LANCZOS)
+                # 스케일을 고려한 이미지 리사이징
+                bg_image = bg_image.resize((actual_width, actual_height), Image.Resampling.LANCZOS)
                 self.bg_photo = ImageTk.PhotoImage(bg_image)
                 
                 # Create background label that covers entire screen
@@ -291,78 +365,59 @@ class TestFTLock:
             print(f"Warning: Could not load background image: {e}")
             self.root.configure(bg='#1a1a2e')
         
-        # Create container - 화면 중앙 상대값, 내부 요소들만 절대 고정
-        container_width = 450
-        container_height = 420
+        # Create center container for passcode input (가운데로 이동)
+        input_container = tk.Frame(self.root, bg='black', relief='flat')
+        input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
         
-        input_container = tk.Frame(self.root, bg='black', relief='solid', bd=2)
-        input_container.place(relx=0.5, rely=0.5, anchor='center', width=container_width, height=container_height)
-        
-        print(f"Container at SCREEN CENTER (relative), size {container_width}x{container_height}")
-        print("🔒 Container centered, but ALL internal elements are ABSOLUTELY FIXED!")
-        
-        # 모든 요소를 컨테이너 내부 절대 위치로 고정 배치
-        print("🔧 Placing ALL elements at FIXED positions inside container!")
-        
-        # Lock icon - 컨테이너 중앙 정렬
-        lock_label = tk.Label(input_container, text="🔒", font=("Arial", 40), 
+        # Lock icon in input container
+        lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
                              bg='black', fg='white')
-        lock_label.place(x=210, y=15)  # 컨테이너 상단 중앙
+        lock_label.pack(pady=(20, 10))
         
-        # System info - 중앙 정렬
+        # System info (실시간 업데이트를 위해 라벨을 인스턴스 변수로 저장)
         hostname = os.uname().nodename
         
         self.time_label = tk.Label(input_container, text="", 
-                             font=("Arial", 18, "bold"), bg='black', fg='white')
-        self.time_label.place(x=170, y=75)  # 락 아이콘 아래
+                             font=("Arial", 20, "bold"), bg='black', fg='white')
+        self.time_label.pack(pady=(0, 2))
         
         self.date_label = tk.Label(input_container, text="",
-                             font=("Arial", 11), bg='black', fg='gray')
-        self.date_label.place(x=140, y=105)  # 시간 아래
+                             font=("Arial", 12), bg='black', fg='gray')
+        self.date_label.pack(pady=(0, 15))
         
-        # Password prompt - 중앙 정렬
+        # Password prompt
         prompt_label = tk.Label(input_container, text="Enter Password:",
-                               font=("Arial", 13), bg='black', fg='white')
-        prompt_label.place(x=170, y=140)  # 날짜 아래
+                               font=("Arial", 14), bg='black', fg='white')
+        prompt_label.pack(pady=(0, 8))
         
-        # Password entry - 고정 위치 및 크기
-        font_size = 14
-        bg_color = '#6a6a9e'     # 밝은 보라색 배경
+        # Password entry with modern styling
+        entry_frame = tk.Frame(input_container, bg='black')
+        entry_frame.pack(pady=(0, 15))
         
-        self.password_entry = tk.Entry(input_container,
-                                      show='•',
-                                      font=("Arial", font_size, "bold"),
-                                      bg=bg_color,
-                                      fg='white',
-                                      relief='solid',
-                                      bd=2,
-                                      highlightthickness=1,
-                                      highlightcolor='#ffffff',
-                                      insertbackground='white',
-                                      insertwidth=2)
-        
-        # Entry 중앙 정렬 및 적절한 크기
-        self.password_entry.place(x=75, y=170, width=300, height=40)  # prompt 아래
+        self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 14),
+                                      width=25, bg='#2a2a3e', fg='white',
+                                      relief='flat', bd=0, insertbackground='white')
+        self.password_entry.pack(ipady=8, ipadx=10)
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
         # Allow only specific keys in password entry
         self.password_entry.bind('<Key>', lambda e: None if self.block_all_keys(e) != "break" else "break")
         
-        # Unlock button - 고정 위치
-        unlock_btn = tk.Button(input_container, text="Unlock", font=("Arial", 11, "bold"),
+        # Unlock button with modern styling
+        unlock_btn = tk.Button(input_container, text="Unlock", font=("Arial", 12, "bold"),
                               command=self.on_unlock_attempt, 
                               bg='#4a69bd', fg='white', relief='flat',
-                              cursor='hand2')
-        unlock_btn.place(x=185, y=225, width=80, height=35)  # Entry 아래 중앙
+                              padx=30, pady=8, cursor='hand2')
+        unlock_btn.pack(pady=(0, 10))
         
-        # Status label - 고정 위치
+        # Status label with authentication method info
         auth_info = "PAM + test mode" if PAM_AVAILABLE else "Test mode only"
         status_text = f"Auth: {auth_info}\nEnter your password or 'test' to unlock"
         
-        self.status_label = tk.Label(input_container, text=status_text, font=("Arial", 9),
+        self.status_label = tk.Label(input_container, text=status_text, font=("Arial", 10),
                                     bg='black', fg='orange', wraplength=350, justify='center')
-        self.status_label.place(x=50, y=275, width=350, height=60)  # 버튼 아래
+        self.status_label.pack(pady=(0, 10))
         
         # Center bottom info (user and hostname)
         bottom_container = tk.Frame(self.root, bg='black')
