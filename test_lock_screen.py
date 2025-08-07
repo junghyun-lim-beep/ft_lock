@@ -53,13 +53,12 @@ class TestFTLock:
                     scale_element = logicalmonitor.find('scale')
                     if scale_element is not None:
                         actual_scale = float(scale_element.text)
-                        print(f"✓ Scale from monitors.xml: {actual_scale}")
                         break
             else:
-                print("⚠ monitors.xml not accessible, trying alternative methods...")
+                pass
                 
         except Exception as e:
-            print(f"⚠ Error reading monitors.xml: {e}")
+            pass
         
         # 방법 2: gsettings로 fallback
         if actual_scale == 1.0:
@@ -71,9 +70,8 @@ class TestFTLock:
                     text_scale = float(result.stdout.strip())
                     if text_scale != 1.0:
                         actual_scale = text_scale
-                        print(f"✓ Scale from gsettings text-scaling-factor: {actual_scale}")
             except Exception as e:
-                print(f"⚠ gsettings method failed: {e}")
+                pass
         
         # 방법 3: 해상도 비교로 추정
         if actual_scale == 1.0:
@@ -90,11 +88,9 @@ class TestFTLock:
                         
                         if logical_width == 1920:  # 3840을 1920으로 스케일링
                             actual_scale = 2.0
-                            print(f"✓ Scale estimated from resolution comparison: {actual_scale}")
             except Exception as e:
-                print(f"⚠ Resolution comparison failed: {e}")
+                pass
         
-        print(f"Final detected scale: {actual_scale}")
         return actual_scale  # 실제 스케일 반환 (UI 조정용)
         
     def authenticate_user(self, username, password):
@@ -314,9 +310,8 @@ class TestFTLock:
         # tkinter가 시스템 DPI 스케일링을 무시하도록 설정
         try:
             self.root.tk.call('tk', 'scaling', 1.0)
-            print("✓ tkinter DPI scaling disabled")
         except Exception as e:
-            print(f"⚠ Could not disable tkinter DPI scaling: {e}")
+            pass
         
         # 디스플레이 스케일 가져오기
         display_scale = self.get_display_scale()
@@ -328,10 +323,6 @@ class TestFTLock:
         # Get screen dimensions BEFORE overrideredirect
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
-        
-        print(f"Screen dimensions: {screen_width}x{screen_height}")
-        print(f"Scale factor: {display_scale}")
-        print(f"🔒 tkinter DPI scaling will be disabled to normalize UI elements")
         
         # Now remove window decorations
         self.root.overrideredirect(True)
@@ -375,8 +366,6 @@ class TestFTLock:
         else:
             container_width = 450
             container_height = 400
-        
-        print(f"Container size: {container_width}x{container_height}")
         
         input_container = tk.Frame(self.root, bg='black', relief='flat')
         input_container.place(relx=0.5, rely=0.5, anchor='center', width=container_width, height=container_height)

@@ -17,6 +17,7 @@ import getpass
 import psutil
 from datetime import datetime
 import threading
+import xml.etree.ElementTree as ET
 
 
 class FTLock:
@@ -33,6 +34,62 @@ class FTLock:
         self.lockout_active = False  # 5분 잠금 상태
         self.lockout_start_time = None  # 잠금 시작 시간
         self.setup_signal_handlers()
+        
+    def get_display_scale(self):
+        """여러 방법으로 디스플레이 스케일 값 가져오기"""
+        actual_scale = 1.0
+        
+        # 방법 1: monitors.xml 파일 확인
+        try:
+            monitors_file = os.path.expanduser("~/.config/monitors.xml")
+            
+            if os.path.exists(monitors_file) and os.access(monitors_file, os.R_OK):
+                tree = ET.parse(monitors_file)
+                root = tree.getroot()
+                
+                for logicalmonitor in root.findall('.//logicalmonitor'):
+                    scale_element = logicalmonitor.find('scale')
+                    if scale_element is not None:
+                        actual_scale = float(scale_element.text)
+                        break
+            else:
+                pass
+                
+        except Exception as e:
+            pass
+        
+        # 방법 2: gsettings로 fallback
+        if actual_scale == 1.0:
+            try:
+                import subprocess
+                result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'text-scaling-factor'], 
+                                      capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    text_scale = float(result.stdout.strip())
+                    if text_scale != 1.0:
+                        actual_scale = text_scale
+            except Exception as e:
+                pass
+        
+        # 방법 3: 해상도 비교로 추정
+        if actual_scale == 1.0:
+            try:
+                import subprocess
+                result = subprocess.run(['xrandr'], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0:
+                    # 4K 해상도면 보통 2.0 스케일 사용
+                    if '3840x2160' in result.stdout:
+                        # tkinter로 논리적 해상도 확인
+                        temp_root = tk.Tk()
+                        logical_width = temp_root.winfo_screenwidth()
+                        temp_root.destroy()
+                        
+                        if logical_width == 1920:  # 3840을 1920으로 스케일링
+                            actual_scale = 2.0
+            except Exception as e:
+                pass
+        
+        return actual_scale
         
     def setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""
@@ -256,18 +313,14 @@ class FTLock:
         self.root.title("FT Lock")
         self.root.configure(bg='black')
         
-        # HiDPI 대응 추가
+        # tkinter가 시스템 DPI 스케일링을 무시하도록 설정
         try:
-            # 시스템 스케일링 팩터 감지
-            scale_factor = self.root.tk.call('tk', 'scaling')
-            if scale_factor > 1.0:
-                # 스케일링이 적용된 경우, UI 요소 크기를 조정
-                self.ui_scale = 1.0 / scale_factor
-                print(f"HiDPI detected: scale={scale_factor}, UI adjustment={self.ui_scale}")
-            else:
-                self.ui_scale = 1.0
-        except:
-            self.ui_scale = 1.0
+            self.root.tk.call('tk', 'scaling', 1.0)
+        except Exception as e:
+            pass
+        
+        # 디스플레이 스케일 가져오기
+        display_scale = self.get_display_scale()
             
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
@@ -318,15 +371,20 @@ class FTLock:
             print(f"Warning: Could not load background image: {e}")
             self.root.configure(bg='#1a1a2e')
         
-        # Create center container for passcode input (가운데로 이동, HiDPI 대응)
-        container_width = int(400 * self.ui_scale)
-        container_height = int(350 * self.ui_scale)
+        # Create center container for passcode input (가운데로 이동)
+        # 스케일에 따라 컨테이너 크기 조정 (적당한 크기로)
+        if display_scale > 1.0:
+            container_width = int(450 * display_scale)  # 적당한 크기로 조정
+            container_height = int(400 * display_scale)
+        else:
+            container_width = 450
+            container_height = 400
+        
         input_container = tk.Frame(self.root, bg='black', relief='flat')
         input_container.place(relx=0.5, rely=0.5, anchor='center', width=container_width, height=container_height)
         
-        # Lock icon in input container (HiDPI 대응)
-        icon_size = int(48 * self.ui_scale)
-        lock_label = tk.Label(input_container, text="🔒", font=("Arial", icon_size), 
+        # Lock icon in input container
+        lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
                              bg='black', fg='white')
         lock_label.pack(pady=(20, 10))
         
