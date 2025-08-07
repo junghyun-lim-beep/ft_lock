@@ -65,6 +65,8 @@ class TestFTLock:
                     logicalmonitors = active_config.findall('logicalmonitor')
                     print(f"  {len(logicalmonitors)}개 logicalmonitor 발견")
                     
+                    # 모든 모니터 정보 수집
+                    monitors_info = []
                     for i, lm in enumerate(logicalmonitors):
                         scale_elem = lm.find('scale')
                         primary_elem = lm.find('primary')
@@ -73,12 +75,44 @@ class TestFTLock:
                             scale_val = float(scale_elem.text)
                             is_primary = primary_elem is not None and primary_elem.text == 'yes'
                             
+                            monitors_info.append((i+1, scale_val, is_primary))
                             print(f"  Monitor {i+1}: scale={scale_val}, primary={is_primary}")
-                            
-                            # 첫 번째 스케일 값을 사용 (가장 간단)
-                            if actual_scale == 1.0:
+                    
+                    # 스케일 선택 로직: gsettings로 현재 설정과 비교
+                    print("\n  gsettings 현재 설정 확인...")
+                    try:
+                        import subprocess
+                        result = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'text-scaling-factor'], 
+                                              capture_output=True, text=True, timeout=5)
+                        current_text_scale = 1.0
+                        if result.returncode == 0:
+                            current_text_scale = float(result.stdout.strip())
+                            print(f"  현재 text-scaling-factor: {current_text_scale}")
+                        
+                        # 현재 text-scaling-factor와 가장 가까운 primary 모니터 찾기
+                        best_match = None
+                        min_diff = float('inf')
+                        
+                        for monitor_num, scale_val, is_primary in monitors_info:
+                            if is_primary:
+                                diff = abs(scale_val - current_text_scale)
+                                print(f"  Monitor {monitor_num} 차이: |{scale_val} - {current_text_scale}| = {diff}")
+                                if diff < min_diff:
+                                    min_diff = diff
+                                    best_match = (monitor_num, scale_val)
+                        
+                        if best_match:
+                            actual_scale = best_match[1]
+                            print(f"  ✓ 현재 설정과 가장 가까운 스케일: {actual_scale} (Monitor {best_match[0]})")
+                        
+                    except Exception as e:
+                        print(f"  gsettings 확인 실패: {e}")
+                        # fallback: 첫 번째 primary 사용
+                        for monitor_num, scale_val, is_primary in monitors_info:
+                            if is_primary and actual_scale == 1.0:
                                 actual_scale = scale_val
-                                print(f"  → 첫 번째 스케일 선택: {actual_scale}")
+                                print(f"  → Fallback: 첫 번째 Primary 사용: {actual_scale}")
+                                break
                 
             else:
                 print("monitors.xml 없음")
