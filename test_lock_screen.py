@@ -244,66 +244,6 @@ class TestFTLock:
             # 1초마다 업데이트
             self.root.after(1000, self.update_time)
             
-    def _check_entry_status(self):
-        """Entry 위젯 상태 확인 및 문제 시 강제 수정"""
-        try:
-            if hasattr(self, 'password_entry') and self.password_entry:
-                is_mapped = self.password_entry.winfo_ismapped()
-                is_viewable = self.password_entry.winfo_viewable()
-                width = self.password_entry.winfo_width()
-                height = self.password_entry.winfo_height()
-                
-                print(f"Entry status: mapped={is_mapped}, viewable={is_viewable}, size={width}x{height}")
-                
-                if not is_mapped or not is_viewable or width < 10 or height < 10:
-                    print("⚠️  Entry widget has visibility issues!")
-                    print("🔧 Attempting emergency fix...")
-                    
-                    # 긴급 수정: 새로운 Entry를 root에 직접 생성
-                    try:
-                        # 기존 Entry 제거
-                        if hasattr(self, 'password_entry') and self.password_entry:
-                            self.password_entry.destroy()
-                        
-                        # 화면 중앙에 직접 Entry 생성
-                        screen_width = self.root.winfo_screenwidth()
-                        screen_height = self.root.winfo_screenheight()
-                        
-                        self.password_entry = tk.Entry(self.root,
-                                                      show='•',
-                                                      font=("Arial", 16),
-                                                      width=20,
-                                                      bg='#6a6a8e',  # 더욱 밝은 배경
-                                                      fg='white',
-                                                      relief='solid',
-                                                      bd=3,
-                                                      insertbackground='white')
-                        
-                        # 화면 정중앙에 배치
-                        x = screen_width // 2 - 150
-                        y = screen_height // 2 + 50
-                        self.password_entry.place(x=x, y=y, width=300, height=50)
-                        
-                        # 이벤트 재바인딩
-                        self.password_entry.bind('<Return>', self.on_unlock_attempt)
-                        self.password_entry.bind('<Key>', lambda e: None if self.block_all_keys(e) != "break" else "break")
-                        
-                        # 강제 업데이트 및 포커스
-                        self.root.update()
-                        self.password_entry.focus_set()
-                        
-                        print("✅ Emergency Entry created directly on root!")
-                        
-                        # 상태 재확인
-                        self.root.after(100, lambda: print(f"Emergency Entry status: mapped={self.password_entry.winfo_ismapped()}, viewable={self.password_entry.winfo_viewable()}"))
-                        
-                    except Exception as fix_e:
-                        print(f"❌ Emergency fix failed: {fix_e}")
-                else:
-                    print("✅ Entry widget appears to be visible")
-        except Exception as e:
-            print(f"Entry status check failed: {e}")
-            
     def create_lock_screen(self):
         """Create the lock screen GUI with full screen background"""
         self.root = tk.Tk()
@@ -376,63 +316,37 @@ class TestFTLock:
                                font=("Arial", 14), bg='black', fg='white')
         prompt_label.pack(pady=(0, 8))
         
-        # Password entry with FIXED values (no scaling detection bullshit)
-        print("🔧 Creating password entry with FIXED values - no scaling detection!")
+        # Password entry with ABSOLUTE FIXED positioning
+        print("🔧 Creating Entry with ABSOLUTE FIXED values for all screens!")
         
-        # 화면 크기 확인
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-        print(f"Screen size: {screen_width}x{screen_height}")
+        # 완전 고정 설정 (모든 해상도/스케일에서 동일한 절대 위치)
+        font_size = 18           # 고정 폰트
+        entry_width = 400        # 고정 너비
+        entry_height = 60        # 고정 높이
+        x_position = 760         # 고정 X 좌표 (1920 기준 중앙)
+        y_position = 580         # 고정 Y 좌표 (1080 기준 중앙)
+        bg_color = '#8a8abe'     # 밝은 보라색 배경
         
-        # 고정 설정 (모든 해상도/스케일링에서 동일)
-        print("Using FIXED settings - ignoring all scaling!")
-        font_size = 18           # 큰 폰트
-        entry_width = 350        # 넓은 너비  
-        entry_height = 55        # 높은 높이
-        x_offset = screen_width // 2 - 175   # 중앙 정렬
-        y_offset = screen_height // 2 + 30   # 중앙 아래
-        bg_color = '#7a7aae'     # 매우 밝은 보라색 배경
-        border_width = 4         # 두꺼운 테두리
-        
-        # Entry를 root에 직접 생성 (Frame 없음)
+        # Entry를 root에 직접 생성 (절대 위치)
         self.password_entry = tk.Entry(self.root,
                                       show='•',
                                       font=("Arial", font_size, "bold"),
                                       bg=bg_color,
                                       fg='white',
                                       relief='solid',
-                                      bd=border_width,
-                                      highlightthickness=3,
+                                      bd=4,
+                                      highlightthickness=2,
                                       highlightcolor='#ffffff',
-                                      highlightbackground='#999999',
                                       insertbackground='white',
-                                      insertwidth=4)
+                                      insertwidth=3)
         
-        # place로 절대 위치 지정
-        self.password_entry.place(x=x_offset, y=y_offset, width=entry_width, height=entry_height)
+        # 절대 위치로 고정 배치
+        self.password_entry.place(x=x_position, y=y_position, width=entry_width, height=entry_height)
         
-        print(f"Entry FIXED at ({x_offset}, {y_offset}) size {entry_width}x{entry_height}")
-        print(f"Entry styling: font={font_size}pt bold, bg={bg_color}, border={border_width}px")
-        
-        # 여러 번 강제 업데이트
-        for i in range(5):
-            self.root.update_idletasks()
-            self.root.update()
-            print(f"Force update #{i+1}")
-        
-        # 최상위로 올리기
-        try:
-            self.password_entry.tkraise()
-            self.password_entry.lift()
-            print("Entry raised to top layer")
-        except Exception as e:
-            print(f"Failed to raise entry: {e}")
-        
+        print(f"Entry FIXED at absolute position ({x_position}, {y_position}) size {entry_width}x{entry_height}")
+        print(f"This position is SAME on ALL screen resolutions and scales!")
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
-        
-        # Entry 위젯 상태 확인 (디버깅용)
-        self.root.after(200, self._check_entry_status)
         
         # Allow only specific keys in password entry
         self.password_entry.bind('<Key>', lambda e: None if self.block_all_keys(e) != "break" else "break")
@@ -464,6 +378,7 @@ class TestFTLock:
         # Add escape key to exit test mode (only in test mode)
         def safe_exit(event):
             if event.keysym == 'Escape':
+                self.locked = False
                 self.root.quit()
             return "break"
             
