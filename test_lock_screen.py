@@ -250,11 +250,39 @@ class TestFTLock:
         self.root.title("FT Lock - Test Mode")
         self.root.configure(bg='black')
         
-        # 스케일링 완전 무시 - 모든 스케일 환경에서 동일한 UI
+        # 스케일링 완전 무시 - 더 강력한 방법
         try:
-            # tkinter 내부 스케일링 비활성화
+            # 1. tkinter 내부 스케일링 비활성화
             self.root.tk.call('tk', 'scaling', 1.0)
-            print("Scale ignored: UI will be consistent across all scale settings")
+            
+            # 2. 실제 물리적 해상도 강제 사용
+            import subprocess
+            try:
+                # xrandr로 실제 물리적 해상도 확인
+                result = subprocess.run(['xrandr', '--current'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    import re
+                    # 현재 활성화된 해상도 찾기 (별표가 있는 것)
+                    matches = re.findall(r'(\d+)x(\d+).*\*', result.stdout)
+                    if matches:
+                        real_width, real_height = map(int, matches[0])
+                        print(f"Physical resolution: {real_width}x{real_height}")
+                        
+                        # tkinter가 감지한 해상도와 비교
+                        tk_width = self.root.winfo_screenwidth()
+                        tk_height = self.root.winfo_screenheight()
+                        print(f"Tkinter detected: {tk_width}x{tk_height}")
+                        
+                        if tk_width != real_width or tk_height != real_height:
+                            print(f"Scale detected! Forcing physical resolution...")
+                            # 물리적 해상도로 강제 설정
+                            self.root.geometry(f"{real_width}x{real_height}+0+0")
+                        else:
+                            print("No scaling detected")
+            except Exception as e:
+                print(f"Physical resolution detection failed: {e}")
+                
+            print("Scale override attempted")
         except Exception as e:
             print(f"Scale setting failed: {e}")
         
