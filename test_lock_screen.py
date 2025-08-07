@@ -368,13 +368,13 @@ class TestFTLock:
             self.root.configure(bg='#1a1a2e')
         
         # Create center container for passcode input (가운데로 이동)
-        # 스케일에 따라 컨테이너 크기 조정 (더 큰 크기로)
+        # 스케일에 따라 컨테이너 크기 조정 (적당한 크기로)
         if display_scale > 1.0:
-            container_width = int(600 * display_scale)  # 더 넉넉하게
-            container_height = int(500 * display_scale)
+            container_width = int(450 * display_scale)  # 적당한 크기로 조정
+            container_height = int(400 * display_scale)
         else:
-            container_width = 600
-            container_height = 500
+            container_width = 450
+            container_height = 400
         
         print(f"Container size: {container_width}x{container_height}")
         
