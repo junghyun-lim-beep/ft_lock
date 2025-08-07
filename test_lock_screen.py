@@ -396,12 +396,12 @@ class TestFTLock:
                                font=("Arial", 14), bg='black', fg='white')
         prompt_label.pack(pady=(0, 8))
         
-        # Password entry with modern styling
-        entry_frame = tk.Frame(input_container, bg='black')
-        entry_frame.pack(pady=(0, 15))
+        # Entry 위젯 매핑 문제 해결 시도
+        print("Trying different Entry placement methods...")
         
-        # 매우 눈에 띄는 Entry 테스트 - 200% 스케일에서 보이는지 확인
-        self.password_entry = tk.Entry(entry_frame, 
+        # 방법 1: Frame 없이 직접 배치
+        print("Method 1: Direct placement in container")
+        self.password_entry = tk.Entry(input_container, 
                                       show='•', 
                                       font=("Arial", 20),        # 큰 폰트
                                       width=15, 
@@ -410,7 +410,19 @@ class TestFTLock:
                                       relief='solid',            # 실선 테두리
                                       bd=5,                      # 두꺼운 테두리
                                       insertbackground='white')  # 흰색 커서
-        self.password_entry.pack(ipady=15, ipadx=20)             # 큰 패딩
+        self.password_entry.pack(pady=20)
+        
+        # 강제로 업데이트 및 매핑 시도
+        print("Forcing widget updates...")
+        self.password_entry.update_idletasks()
+        self.password_entry.update()
+        
+        # 매핑 강제 시도
+        try:
+            self.password_entry.tkraise()  # 위젯을 맨 앞으로
+            print("Widget raised to front")
+        except:
+            pass
         
         print("Entry widget configured with HIGH VISIBILITY settings:")
         print(f"- Font: Arial 20")
@@ -419,8 +431,10 @@ class TestFTLock:
         print(f"- Border: solid 5px")
         print(f"- Size: width=15, padding=15x20")
         
-        # Entry 위젯 정보 출력
-        self.root.after(100, self._print_entry_info)
+        # Entry 위젯 정보 여러 번 체크
+        self.root.after(50, self._print_entry_info)   # 50ms 후
+        self.root.after(200, self._print_entry_info)  # 200ms 후  
+        self.root.after(500, self._print_entry_info)  # 500ms 후
         
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
