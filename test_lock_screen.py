@@ -312,6 +312,13 @@ class TestFTLock:
         self.root.title("FT Lock - Test Mode")
         self.root.configure(bg='black')
         
+        # tkinter가 시스템 DPI 스케일링을 무시하도록 설정
+        try:
+            self.root.tk.call('tk', 'scaling', 1.0)
+            print("✓ tkinter DPI scaling disabled")
+        except Exception as e:
+            print(f"⚠ Could not disable tkinter DPI scaling: {e}")
+        
         # 디스플레이 스케일 가져오기 (강제로 1.0)
         display_scale = self.get_display_scale()
         
