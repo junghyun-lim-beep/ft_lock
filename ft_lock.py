@@ -258,10 +258,16 @@ class FTLock:
         
         # HiDPI 대응 추가
         try:
-            # DPI 인식 비활성화 (Windows/Linux)
-            self.root.tk.call('tk', 'scaling', 1.0)
+            # 시스템 스케일링 팩터 감지
+            scale_factor = self.root.tk.call('tk', 'scaling')
+            if scale_factor > 1.0:
+                # 스케일링이 적용된 경우, UI 요소 크기를 조정
+                self.ui_scale = 1.0 / scale_factor
+                print(f"HiDPI detected: scale={scale_factor}, UI adjustment={self.ui_scale}")
+            else:
+                self.ui_scale = 1.0
         except:
-            pass
+            self.ui_scale = 1.0
             
         # Make window fullscreen and topmost
         self.root.attributes('-fullscreen', True)
@@ -312,12 +318,15 @@ class FTLock:
             print(f"Warning: Could not load background image: {e}")
             self.root.configure(bg='#1a1a2e')
         
-        # Create center container for passcode input (가운데로 이동)
+        # Create center container for passcode input (가운데로 이동, HiDPI 대응)
+        container_width = int(400 * self.ui_scale)
+        container_height = int(350 * self.ui_scale)
         input_container = tk.Frame(self.root, bg='black', relief='flat')
-        input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
+        input_container.place(relx=0.5, rely=0.5, anchor='center', width=container_width, height=container_height)
         
-        # Lock icon in input container
-        lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
+        # Lock icon in input container (HiDPI 대응)
+        icon_size = int(48 * self.ui_scale)
+        lock_label = tk.Label(input_container, text="🔒", font=("Arial", icon_size), 
                              bg='black', fg='white')
         lock_label.pack(pady=(20, 10))
         
