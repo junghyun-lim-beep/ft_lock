@@ -95,7 +95,7 @@ class TestFTLock:
             print(f"   Resolution: {active_resolution}")
             print(f"   Position: +{active_position}")
             
-            # 2. cat으로 EDID 읽어서 시리얼 찾기
+            # 2. cat으로 EDID 바이너리 읽어서 시리얼 찾기
             active_serial = None
             
             print(f"\ncat으로 EDID에서 시리얼 찾기:")
@@ -110,23 +110,40 @@ class TestFTLock:
                     edid_file = edid_files[0]
                     print(f"   EDID 파일: {edid_file}")
                     
-                    # cat으로 읽기
+                    # cat으로 바이너리 읽기
                     cat_result = subprocess.run(['cat', edid_file], 
-                                              capture_output=True, text=True, timeout=5)
+                                              capture_output=True, timeout=5)
                     
                     if cat_result.returncode == 0:
-                        edid_content = cat_result.stdout
-                        print(f"   cat 결과 길이: {len(edid_content)}")
-                        print(f"   cat 결과 내용: '{edid_content}'")
+                        edid_data = cat_result.stdout
+                        print(f"   cat 바이너리 길이: {len(edid_data)} bytes")
+                        print(f"   처음 32바이트: {edid_data[:32].hex()}")
                         
-                        # 시리얼 문자열 있는지 확인
-                        if edid_content:
-                            active_serial = edid_content.strip()
+                        # 바이너리에서 읽을 수 있는 ASCII 문자열 추출
+                        ascii_chars = []
+                        for byte in edid_data:
+                            if 32 <= byte <= 126:  # 출력 가능한 ASCII
+                                ascii_chars.append(chr(byte))
+                            else:
+                                ascii_chars.append('.')
+                        
+                        ascii_string = ''.join(ascii_chars)
+                        print(f"   ASCII 변환: '{ascii_string[:100]}...'")  # 처음 100자만
+                        
+                        # 시리얼 같은 패턴 찾기 (연속된 영숫자)
+                        import re
+                        serial_patterns = re.findall(r'[A-Za-z0-9]{6,}', ascii_string)
+                        print(f"   발견된 패턴들: {serial_patterns}")
+                        
+                        if serial_patterns:
+                            active_serial = serial_patterns[0]  # 첫 번째 패턴 사용
                             print(f"   ✓ 시리얼로 사용: '{active_serial}'")
                         else:
-                            print("   cat 결과가 비어있음")
+                            # 패턴이 없으면 전체를 hex로 변환해서 사용
+                            active_serial = edid_data.hex()[:20]  # 처음 20자만
+                            print(f"   ✓ hex 시리얼: '{active_serial}'")
                     else:
-                        print(f"   cat 실행 실패: {cat_result.stderr}")
+                        print(f"   cat 실행 실패")
                 else:
                     print("   EDID 파일 없음")
                     
