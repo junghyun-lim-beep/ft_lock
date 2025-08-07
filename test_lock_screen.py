@@ -291,9 +291,16 @@ class TestFTLock:
             print(f"Warning: Could not load background image: {e}")
             self.root.configure(bg='#1a1a2e')
         
-        # Create center container for passcode input (가운데로 이동)
-        input_container = tk.Frame(self.root, bg='black', relief='flat')
-        input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
+        # Create center container with FIXED size and position
+        container_width = 500
+        container_height = 400
+        container_x = 710  # 고정 X 위치 (1920 기준 중앙)
+        container_y = 340  # 고정 Y 위치 (1080 기준 중앙)
+        
+        input_container = tk.Frame(self.root, bg='black', relief='solid', bd=2)
+        input_container.place(x=container_x, y=container_y, width=container_width, height=container_height)
+        
+        print(f"Container FIXED at ({container_x}, {container_y}) size {container_width}x{container_height}")
         
         # Lock icon in input container
         lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
@@ -316,19 +323,19 @@ class TestFTLock:
                                font=("Arial", 14), bg='black', fg='white')
         prompt_label.pack(pady=(0, 8))
         
-        # Password entry with ABSOLUTE FIXED positioning
-        print("🔧 Creating Entry with ABSOLUTE FIXED values for all screens!")
+        # Password entry with FIXED positioning INSIDE container
+        print("🔧 Creating Entry with FIXED position INSIDE the container!")
         
-        # 완전 고정 설정 (모든 해상도/스케일에서 동일한 절대 위치)
+        # 컨테이너 내부 고정 설정
         font_size = 18           # 고정 폰트
-        entry_width = 400        # 고정 너비
-        entry_height = 60        # 고정 높이
-        x_position = 760         # 고정 X 좌표 (1920 기준 중앙)
-        y_position = 580         # 고정 Y 좌표 (1080 기준 중앙)
+        entry_width = 350        # 고정 너비 (컨테이너보다 작게)
+        entry_height = 50        # 고정 높이
+        entry_x = 75             # 컨테이너 내부 고정 X (중앙: 500/2 - 350/2 = 75)
+        entry_y = 200            # 컨테이너 내부 고정 Y
         bg_color = '#8a8abe'     # 밝은 보라색 배경
         
-        # Entry를 root에 직접 생성 (절대 위치)
-        self.password_entry = tk.Entry(self.root,
+        # Entry를 컨테이너 안에 생성 (컨테이너 내부 절대 위치)
+        self.password_entry = tk.Entry(input_container,
                                       show='•',
                                       font=("Arial", font_size, "bold"),
                                       bg=bg_color,
@@ -340,11 +347,11 @@ class TestFTLock:
                                       insertbackground='white',
                                       insertwidth=3)
         
-        # 절대 위치로 고정 배치
-        self.password_entry.place(x=x_position, y=y_position, width=entry_width, height=entry_height)
+        # 컨테이너 내부 절대 위치로 배치
+        self.password_entry.place(x=entry_x, y=entry_y, width=entry_width, height=entry_height)
         
-        print(f"Entry FIXED at absolute position ({x_position}, {y_position}) size {entry_width}x{entry_height}")
-        print(f"This position is SAME on ALL screen resolutions and scales!")
+        print(f"Entry FIXED inside container at ({entry_x}, {entry_y}) size {entry_width}x{entry_height}")
+        print(f"Container and Entry positions are FIXED on ALL screens!")
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
