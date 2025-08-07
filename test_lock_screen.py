@@ -255,8 +255,8 @@ class TestFTLock:
             # 시스템 스케일링 팩터 감지
             scale_factor = self.root.tk.call('tk', 'scaling')
             if scale_factor > 1.0:
-                # 스케일링이 적용된 경우, UI 요소 크기를 조정
-                self.ui_scale = 1.0 / scale_factor
+                # 스케일링이 적용된 경우, UI 요소 크기를 늘려서 보정
+                self.ui_scale = scale_factor  # 역방향 계산 수정!
                 print(f"HiDPI detected: scale={scale_factor}, UI adjustment={self.ui_scale}")
             else:
                 self.ui_scale = 1.0
