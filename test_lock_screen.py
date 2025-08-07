@@ -304,7 +304,7 @@ class TestFTLock:
             self.root.configure(bg='#1a1a2e')
         
         # Create center container for passcode input (가운데로 이동)
-        input_container = tk.Frame(self.root, bg='red', relief='flat')  # 빨간색으로 변경해서 보이는지 확인
+        input_container = tk.Frame(self.root, bg='black', relief='flat', highlightbackground='white', highlightthickness=2)  # 흰색 테두리로 경계 확인
         input_container.place(relx=0.5, rely=0.5, anchor='center', width=400, height=350)
         print(f"Input container placed at center with size 400x350")
         
@@ -321,8 +321,9 @@ class TestFTLock:
         
         # Lock icon in input container
         lock_label = tk.Label(input_container, text="🔒", font=("Arial", 48), 
-                             bg='black', fg='white')
+                             bg='black', fg='white', highlightbackground='yellow', highlightthickness=1)
         lock_label.pack(pady=(20, 10))
+        print("Lock icon added")
         
         # System info (실시간 업데이트를 위해 라벨을 인스턴스 변수로 저장)
         hostname = os.uname().nodename
@@ -346,8 +347,10 @@ class TestFTLock:
         
         self.password_entry = tk.Entry(entry_frame, show='•', font=("Arial", 14),
                                       width=25, bg='#2a2a3e', fg='white',
-                                      relief='flat', bd=0, insertbackground='white')
+                                      relief='flat', bd=0, insertbackground='white',
+                                      highlightbackground='cyan', highlightthickness=2)
         self.password_entry.pack(ipady=8, ipadx=10)
+        print("Password entry added")
         self.password_entry.focus_set()
         self.password_entry.bind('<Return>', self.on_unlock_attempt)
         
